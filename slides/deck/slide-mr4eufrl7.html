@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ko"><head>
+<meta charset="UTF-8">
+<title>구현 방식</title>
+<link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+<div class="slide"><div class="kicker">ERD 자동화</div>
+<p class="title-lg">구현 방식</p>
+
+<div class="center-stage">
+  <div class="row" style="gap:3vw; align-items:flex-start;">
+    
+    <div class="col" style="flex:1; gap:1.5vw;">
+      <div class="framework-step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title">엑셀에서 Define 추출</div>
+          <div class="step-desc">각 테이블 Define이 담긴 Excel 파일에서 스키마 정보를 파싱</div>
+        </div>
+      </div>
+
+      <div class="framework-step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title">Python 스크립트 변환</div>
+          <div class="step-desc">추출한 데이터를 DBML(Database Markup Language) 형식으로 텍스트 치환</div>
+        </div>
+      </div>
+
+      <div class="framework-step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title">dbdiagram.io 렌더링</div>
+          <div class="step-desc">생성된 DBML을 웹 서비스에 입력하면 자동으로 ERD 시각화</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col" style="flex:1; gap:1vw; padding:1.5vw; background:rgba(255,107,74,0.08); border-radius:0.8vw; border:1px solid rgba(255,107,74,0.2);">
+      <div style="font-size:1.1vw; font-weight:600; color:#ff6b4a; margin-bottom:0.5vw;">핵심 이점</div>
+      <ul class="check-list" style="font-size:0.95vw;">
+        <li>엑셀 → DBML 자동 변환으로 수작업 제거</li>
+        <li>스키마 변경 시 스크립트 재실행만으로 ERD 갱신</li>
+        <li>팀원 누구나 같은 방식으로 ERD 관리 가능</li>
+        <li>버전 관리 시스템에 DBML 파일 보관 가능</li>
+      </ul>
+    </div>
+
+  </div>
+</div>
+
+<div class="page-number" id="page-number"></div></div>
+  <script src="../assets/page-number.js"></script>
+  <script src="../assets/editor.js"></script>
+
+
+</body></html>

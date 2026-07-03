@@ -1,0 +1,320 @@
+[
+  {
+    "act": "0막 · 오프닝",
+    "items": [
+      {
+        "file": "deck/title.html",
+        "title": "타이틀"
+      },
+      {
+        "file": "deck/hook.html",
+        "title": "오프닝 훅"
+      },
+      {
+        "file": "deck/goal.html",
+        "title": "오늘의 목표"
+      }
+    ]
+  },
+  {
+    "act": "1막 · 왜 자동화인가",
+    "items": [
+      {
+        "file": "deck/vibe-coding.html",
+        "title": "AI = 바이브 코딩"
+      },
+      {
+        "file": "deck/goal-productivity.html",
+        "title": "자동화 = 생산성 향상"
+      },
+      {
+        "file": "deck/automation-types.html",
+        "title": "자동화의 종류"
+      },
+      {
+        "file": "deck/no-need-to-chase-trend.html",
+        "title": "유행을 따라갈 필요 없다"
+      },
+      {
+        "file": "deck/essence.html",
+        "title": "본질은 자연어 문제해결"
+      },
+      {
+        "file": "deck/no-magic-click.html",
+        "title": "'딸깍'은 없다"
+      },
+      {
+        "file": "deck/ai-slop.html",
+        "title": "AI Slop",
+        "todo": true
+      },
+      {
+        "file": "deck/human-review.html",
+        "title": "사람의 검토는 필수"
+      }
+    ]
+  },
+  {
+    "act": "2막 · 진짜 일",
+    "items": [
+      {
+        "file": "deck/section-real-work.html",
+        "title": "섹션 · 진짜 일"
+      },
+      {
+        "file": "deck/work-for-work.html",
+        "title": "일을 위한 일"
+      },
+      {
+        "file": "deck/day-of-planner.html",
+        "title": "기획자 A의 하루"
+      },
+      {
+        "file": "deck/time-breakdown-chart.html",
+        "title": "시간 비중 시각화",
+        "todo": true
+      },
+      {
+        "file": "deck/no-data-touched.html",
+        "title": "수정 못한 날들"
+      },
+      {
+        "file": "deck/automate-to-focus.html",
+        "title": "집중을 위한 자동화"
+      },
+      {
+        "file": "deck/productivity-strategy.html",
+        "title": "생산성을 높이는 두 가지 전략"
+      },
+      {
+        "file": "deck/day-of-planner-marked.html",
+        "title": "자동화 대상 표시"
+      }
+    ]
+  },
+  {
+    "act": "매크로",
+    "items": [
+      {
+        "file": "deck/slide-mr4eoti5j.html",
+        "title": "매크로"
+      },
+      {
+        "file": "deck/slide-mr4ernr57.html",
+        "title": "ERD?"
+      },
+      {
+        "file": "deck/slide-mr4fae250.html",
+        "title": "Define 관리 부실"
+      },
+      {
+        "file": "deck/slide-mr4euqamh.html",
+        "title": "dbdigram"
+      },
+      {
+        "file": "deck/slide-mr4eufrl7.html",
+        "title": "구현 방식"
+      },
+      {
+        "file": "deck/slide-mr4eqacbw.html",
+        "title": "ERD Exporter 소개"
+      },
+      {
+        "file": "deck/slide-mr4fgqme5.html",
+        "title": "임베드"
+      }
+    ]
+  },
+  {
+    "act": "3막 · 비주얼라이즈",
+    "items": [
+      {
+        "file": "deck/section-visualize.html",
+        "title": "섹션 · 비주얼라이즈"
+      },
+      {
+        "file": "deck/slide-mr4e4om56.html",
+        "title": "좋은 프로세스 나쁜 프로세스"
+      },
+      {
+        "file": "deck/slide-mr4ej70yr.html",
+        "title": "멋진 사례"
+      },
+      {
+        "file": "deck/visualize-why.html",
+        "title": "일반적인 워크플로우",
+        "todo": true
+      },
+      {
+        "file": "deck/slide-mr4d5zg7v.html",
+        "title": "핵심 루틴"
+      },
+      {
+        "file": "deck/slide-mr4cigij9.html",
+        "title": "다양한 인터럽트"
+      },
+      {
+        "file": "deck/slide-mr4degyf7.html",
+        "title": "매번 골치아프게 갱신 안하고 싶음"
+      },
+      {
+        "file": "deck/slide-mr4ddbzjb.html",
+        "title": "데이터로 기획서를 만들자"
+      },
+      {
+        "file": "deck/slide-mr4do5f0f.html",
+        "title": "발상 A"
+      },
+      {
+        "file": "deck/slide-mr4dou99p.html",
+        "title": "발상 A-2"
+      },
+      {
+        "file": "deck/slide-mr4dt90mj.html",
+        "title": "시각화 계획"
+      },
+      {
+        "file": "deck/visualize-gamedataviewer.html",
+        "title": "GameDataViewer 소개",
+        "todo": true
+      },
+      {
+        "file": "deck/visualize-impact.html",
+        "title": "얻은 것",
+        "todo": true
+      }
+    ]
+  },
+  {
+    "act": "피드백 루프",
+    "items": [
+      {
+        "file": "deck/slide-mr4fliu3e.html",
+        "title": "피드백 루프"
+      },
+      {
+        "file": "deck/slide-mr4fttldl.html",
+        "title": "슈터 게임에서의 피드백"
+      },
+      {
+        "file": "deck/slide-mr4frmcuy.html",
+        "title": "유니티"
+      },
+      {
+        "file": "deck/slide-mr4fpvc78.html",
+        "title": "LevelViewer 공유"
+      }
+    ]
+  },
+  {
+    "act": "데이터 입력",
+    "items": [
+      {
+        "file": "deck/slide-mr4g4l6u7.html",
+        "title": "데이터 입력"
+      },
+      {
+        "file": "deck/slide-mr4ggixay.html",
+        "title": "프로시저럴 방식"
+      },
+      {
+        "file": "deck/slide-mr4gbk8mx.html",
+        "title": "레벨 디자인 공유"
+      },
+      {
+        "file": "deck/slide-mr4gk05e0.html",
+        "title": "결과"
+      }
+    ]
+  },
+  {
+    "act": "5막 · 사전 질문 Q&A",
+    "items": [
+      {
+        "file": "deck/section-qna.html",
+        "title": "섹션 · 사전 질문"
+      },
+      {
+        "file": "deck/cluster-a-q.html",
+        "title": "A. 워크플로우 설계 — 질문"
+      },
+      {
+        "file": "deck/cluster-a-a.html",
+        "title": "A. 워크플로우 설계 — 답변"
+      },
+      {
+        "file": "deck/cluster-b-q.html",
+        "title": "B. 프롬프트·규칙 — 질문"
+      },
+      {
+        "file": "deck/cluster-b-a.html",
+        "title": "B. 프롬프트·규칙 — 답변"
+      },
+      {
+        "file": "deck/cluster-c-q.html",
+        "title": "C. 밸런싱·데이터 — 질문"
+      },
+      {
+        "file": "deck/cluster-c-a.html",
+        "title": "C. 밸런싱·데이터 — 답변"
+      },
+      {
+        "file": "deck/cluster-d-q.html",
+        "title": "D. 프로토타입·배치 — 질문"
+      },
+      {
+        "file": "deck/cluster-d-a.html",
+        "title": "D. 프로토타입·배치 — 답변"
+      },
+      {
+        "file": "deck/cluster-e-q.html",
+        "title": "E. 모델·창의성 — 질문"
+      },
+      {
+        "file": "deck/cluster-e-a.html",
+        "title": "E. 모델·창의성 — 답변"
+      },
+      {
+        "file": "deck/cluster-f-q.html",
+        "title": "F. 세계관·품질검증 — 질문"
+      },
+      {
+        "file": "deck/cluster-f-a.html",
+        "title": "F. 세계관·품질검증 — 답변"
+      },
+      {
+        "file": "deck/cluster-g-q.html",
+        "title": "G. Before/After·사람의 역할 — 질문"
+      },
+      {
+        "file": "deck/cluster-g-a.html",
+        "title": "G. Before/After·사람의 역할 — 답변"
+      },
+      {
+        "file": "deck/cluster-h-q.html",
+        "title": "H. 조직·법률·거버넌스 — 질문"
+      },
+      {
+        "file": "deck/cluster-h-a.html",
+        "title": "H. 조직·법률·거버넌스 — 답변"
+      }
+    ]
+  },
+  {
+    "act": "6막 · 클로징",
+    "items": [
+      {
+        "file": "deck/summary.html",
+        "title": "오늘 배운 것 요약"
+      },
+      {
+        "file": "deck/closing-message.html",
+        "title": "클로징 메시지"
+      },
+      {
+        "file": "deck/thank-you.html",
+        "title": "감사 인사 · Q&A"
+      }
+    ]
+  }
+]

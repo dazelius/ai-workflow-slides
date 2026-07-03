@@ -1,0 +1,735 @@
+/* ==========================================================================
+   AI로 내 업무 자동화하기 — 공용 슬라이드 스타일
+   각 슬라이드는 100vw x 100vh 컨테이너이며, vw 단위 폰트를 사용해
+   index.html의 16:9 iframe 안에서 일관되게 스케일됩니다.
+
+   담백한 톤을 위해 색은 accent 하나만 쓰고, 나머지는 전부 무채색
+   명도 차이로만 구분합니다. 그라데이션 · 알약형 배지 · 장식용 배경
+   숫자 같은 요소는 넣지 않습니다.
+   ========================================================================== */
+
+:root {
+  --bg: #0c0d10;
+  --bg-panel: #16171b;
+  --text: #f2f3f5;
+  --muted: #999da5;
+  --muted-2: #6b6e75;
+  --accent: #ff6b4a;
+  --line: #26282e;
+  --font: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", -apple-system,
+    BlinkMacSystemFont, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+}
+
+.slide {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  display: flex;
+  flex-direction: column;
+  padding: 5.2vw 6.2vw;
+}
+
+/* ---- 공통 텍스트 유틸 ---- */
+
+.kicker {
+  font-size: 1.1vw;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 1.6vw 0;
+}
+
+.kicker.alt {
+  color: var(--muted);
+}
+
+.title-xl {
+  font-size: 4.2vw;
+  font-weight: 700;
+  line-height: 1.32;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.title-lg {
+  font-size: 3vw;
+  font-weight: 700;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.title-md {
+  font-size: 2.2vw;
+  font-weight: 700;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.body-lg {
+  font-size: 1.4vw;
+  line-height: 1.65;
+  color: var(--muted);
+  margin-top: 1.6vw;
+  max-width: 48vw;
+}
+
+.body-md {
+  font-size: 1.15vw;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.accent {
+  color: var(--accent);
+}
+
+.accent-2 {
+  color: var(--text);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+/* ---- 페이지 프레임 요소 ---- */
+
+.page-number {
+  position: absolute;
+  bottom: 3vw;
+  right: 4vw;
+  font-size: 0.9vw;
+  color: var(--muted-2);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.05em;
+}
+
+.footer-tag {
+  position: absolute;
+  bottom: 3vw;
+  left: 4vw;
+  font-size: 0.8vw;
+  color: var(--muted-2);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.corner-mark {
+  display: none;
+}
+
+/* ---- 레이아웃 헬퍼 ---- */
+
+.center-stage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.top-stage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding-top: 1vw;
+}
+
+.row {
+  display: flex;
+  flex-direction: row;
+  gap: 2.2vw;
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 1vw;
+}
+
+.rule {
+  width: 100%;
+  height: 1px;
+  background: var(--line);
+  margin: 2vw 0;
+}
+
+.rule-accent {
+  width: 3.2vw;
+  height: 2px;
+  background: var(--accent);
+  margin-bottom: 1.6vw;
+}
+
+/* ---- 표지/섹션 전용 ---- */
+
+.slide.cover {
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.slide.section {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.section-index {
+  display: none;
+}
+
+/* ---- 훅 슬라이드 (임팩트용 대형 텍스트) ---- */
+
+.slide.hook {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.hook-text {
+  margin: 1.4vw 0 0;
+  font-size: 3.8vw;
+  font-weight: 700;
+  line-height: 1.4;
+  max-width: 70vw;
+  letter-spacing: -0.01em;
+}
+
+.hook-sub {
+  margin: 1.8vw 0 0;
+  font-size: 1.2vw;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+/* ---- 카드 ---- */
+
+.card {
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 1.7vw;
+}
+
+.card-grid {
+  display: grid;
+  gap: 1vw;
+}
+
+.card .card-num {
+  font-size: 0.9vw;
+  color: var(--muted-2);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.card .card-title {
+  font-size: 1.3vw;
+  font-weight: 700;
+  margin-top: 0.6vw;
+}
+
+.card .card-desc {
+  font-size: 0.98vw;
+  color: var(--muted);
+  margin-top: 0.5vw;
+  line-height: 1.55;
+}
+
+.card.marked {
+  border-left: 2px solid var(--accent);
+}
+
+.card.marked .card-title::after {
+  content: " *";
+  color: var(--accent);
+}
+
+/* ---- 리스트 ---- */
+
+.big-list {
+  list-style: none;
+  margin: 1.6vw 0 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1vw;
+}
+
+.big-list li {
+  font-size: 1.4vw;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: baseline;
+  gap: 0.9vw;
+}
+
+.big-list li .n {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 1.1vw;
+  min-width: 1.6vw;
+}
+
+.check-list {
+  list-style: none;
+  margin: 1.6vw 0 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9vw;
+}
+
+.check-list li {
+  font-size: 1.1vw;
+  color: var(--muted);
+  padding-left: 1.3vw;
+  position: relative;
+  line-height: 1.55;
+}
+
+.check-list li::before {
+  content: "–";
+  position: absolute;
+  left: 0;
+  color: var(--muted-2);
+}
+
+/* ---- 질문 카드 (Q&A 클러스터) ---- */
+
+.quote-card {
+  background: transparent;
+  border-left: 2px solid var(--line);
+  padding: 0.2vw 1.2vw;
+  font-size: 1vw;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.quote-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1vw;
+  margin-top: 2vw;
+}
+
+.framework-step {
+  display: flex;
+  gap: 1.2vw;
+  align-items: flex-start;
+}
+
+.framework-step .step-num {
+  flex: none;
+  width: 2.4vw;
+  height: 2.4vw;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1.1vw;
+}
+
+.framework-step .step-body .step-title {
+  font-size: 1.25vw;
+  font-weight: 700;
+}
+
+.framework-step .step-body .step-desc {
+  font-size: 0.98vw;
+  color: var(--muted);
+  margin-top: 0.4vw;
+  line-height: 1.55;
+  max-width: 34vw;
+}
+
+/* ---- TODO 표시 (사용자가 직접 채울 영역) ---- */
+
+.todo-block {
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--muted-2);
+  border-radius: 4px;
+  background: transparent;
+  padding: 1.3vw 1.5vw;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5vw;
+}
+
+.todo-label {
+  font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.8vw;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.todo-desc {
+  font-size: 1vw;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+/* ---- 도넛 차트 (예시 데이터 시각화) ---- */
+
+.donut-wrap {
+  display: flex;
+  align-items: center;
+  gap: 3vw;
+}
+
+.donut {
+  width: 18vw;
+  height: 18vw;
+  border-radius: 50%;
+  flex: none;
+  position: relative;
+  background: conic-gradient(var(--donut-stops, #333 0 100%));
+}
+
+.donut::after {
+  content: "";
+  position: absolute;
+  inset: 3vw;
+  border-radius: 50%;
+  background: var(--bg);
+  z-index: 1;
+}
+
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85vw;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.8vw;
+  font-size: 1vw;
+  color: var(--text);
+}
+
+.legend-dot {
+  width: 0.7vw;
+  height: 0.7vw;
+  border-radius: 2px;
+  flex: none;
+}
+
+.legend-item .legend-value {
+  color: var(--muted);
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- 도넛 차트 히어로 버전 (차트가 화면을 꽉 채우는 레이아웃) ---- */
+
+.donut-hero {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 3.6vw;
+}
+
+.donut-hero .donut {
+  width: 32vw;
+  height: 32vw;
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.donut-hero .donut::after {
+  inset: 4.6vw;
+}
+
+.donut-center {
+  position: absolute;
+  inset: 4.6vw;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0 1vw;
+}
+
+.donut-center-num {
+  font-size: 3.2vw;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1;
+}
+
+.donut-center-num span {
+  font-size: 1.4vw;
+  font-weight: 700;
+  color: var(--muted);
+  margin-left: 0.15vw;
+}
+
+.donut-center-label {
+  margin-top: 0.6vw;
+  font-size: 0.95vw;
+  color: var(--muted);
+  word-break: keep-all;
+}
+
+.donut-hero-legend {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.3vw;
+}
+
+.legend-row-top {
+  display: flex;
+  align-items: center;
+  gap: 0.7vw;
+  font-size: 1.2vw;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.legend-row-top .legend-value {
+  margin-left: auto;
+  color: var(--muted);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.legend-bar {
+  margin-top: 0.55vw;
+  height: 0.5vw;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.legend-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+}
+
+/* ---- 두 컬럼 레이아웃 ---- */
+
+.split {
+  flex: 1;
+  display: flex;
+  gap: 3.5vw;
+  align-items: center;
+}
+
+.split > .col-left,
+.split > .col-right {
+  flex: 1;
+}
+
+/* ---- 태그 ---- */
+
+.tag {
+  display: inline-block;
+  font-size: 0.85vw;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tag.alt {
+  color: var(--muted);
+}
+
+/* ---- 강조 박스 (에디터의 "강조" 서식으로 삽입되는 요소) ---- */
+
+.hl-box {
+  background: #000;
+  padding: 0.04em 0.32em;
+  border-radius: 2px;
+}
+
+/* ---- 자유 배치 요소: 이미지 / 텍스트 상자 / 도형 ---- */
+/* 위치·크기는 %(슬라이드 기준) 인라인 스타일로 저장되어 화면 크기와 무관하게 유지됩니다. */
+
+.free-el {
+  position: absolute;
+}
+
+.free-el--image img {
+  width: 100%;
+  height: auto;
+  display: block;
+  pointer-events: none;
+}
+
+.free-el--text {
+  outline: none;
+  word-break: keep-all;
+}
+
+.free-el--shape {
+  display: block;
+}
+
+.free-el--video {
+  aspect-ratio: 16 / 9;
+}
+
+.free-el--video iframe,
+.free-el--video video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border: 0;
+  background: #000;
+}
+
+/* 유튜브가 아닌 일반 <iframe> 임베드 (dbdiagram.io, Figma, 구글 지도 등).
+   영상과 달리 콘텐츠 비율이 제각각이라 16:9로 고정하지 않고 가로/세로를
+   자유롭게 리사이즈할 수 있게 둔다. */
+.free-el--embed iframe {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border: 0;
+  background: #fff;
+}
+
+/* ---- 버블 클러스터 인포그래픽 (업무를 잘게 쪼개서 보여줄 때) ---- */
+/* 처음엔 6개의 큰 허브 버블(문서 작성/데이터 작업/...)만 심플하게 보이다가,
+   허브 하나를 클릭하면 "다음 액션"으로 그 허브 안에 숨어있던 실제 세부
+   업무들이 와르르 펼쳐진다. 허브별로 독립적으로 열고 닫을 수 있어서,
+   발표하면서 하나씩 눌러가며 "이거 별거 아닌 것 같죠? 펼쳐보면..." 하는
+   식으로 진행할 수 있다. */
+
+.bubble-stage {
+  flex: 1;
+  margin-top: 1vw;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 1vw;
+}
+
+.bubble-cell {
+  position: relative;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0));
+  overflow: hidden;
+}
+
+.bubble-cell-label {
+  position: absolute;
+  left: 0.7vw;
+  top: 0.6vw;
+  font-size: 0.68vw;
+  font-weight: 600;
+  color: var(--muted-2);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  z-index: 4;
+}
+
+.bubble-hub {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  width: 8vw;
+  height: 8vw;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0 0.5vw;
+  font-weight: 800;
+  font-size: 1vw;
+  line-height: 1.25;
+  color: #0c0d10;
+  z-index: 3;
+  word-break: keep-all;
+  cursor: pointer;
+  transform: translate(-50%, -50%) scale(1);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  animation: bubble-hint 2.6s ease-in-out infinite;
+}
+
+.bubble-hub:hover {
+  transform: translate(-50%, -50%) scale(1.06);
+}
+
+.bubble-cell.is-open .bubble-hub {
+  animation: none;
+  box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.08);
+}
+
+@keyframes bubble-hint {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+  50% { box-shadow: 0 0 0 7px rgba(255, 255, 255, 0.07); }
+}
+
+.bubble-node {
+  position: absolute;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0 0.4vw;
+  font-size: 0.62vw;
+  font-weight: 600;
+  line-height: 1.24;
+  color: var(--text);
+  z-index: 2;
+  word-break: keep-all;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0.15);
+  transition: opacity 0.35s ease, transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition-delay: var(--d, 0s);
+}
+
+.bubble-cell.is-open .bubble-node {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.bubble-cell--doc .bubble-hub { background: #9c8bff; }
+.bubble-cell--doc .bubble-node { background: rgba(156, 139, 255, 0.14); border: 1px solid rgba(156, 139, 255, 0.4); }
+
+.bubble-cell--test .bubble-hub { background: #ff6fa3; }
+.bubble-cell--test .bubble-node { background: rgba(255, 111, 163, 0.14); border: 1px solid rgba(255, 111, 163, 0.4); }
+
+.bubble-cell--data .bubble-hub { background: #5aa9ff; }
+.bubble-cell--data .bubble-node { background: rgba(90, 169, 255, 0.14); border: 1px solid rgba(90, 169, 255, 0.4); }
+
+.bubble-cell--meeting .bubble-hub { background: #38d6a8; }
+.bubble-cell--meeting .bubble-node { background: rgba(56, 214, 168, 0.14); border: 1px solid rgba(56, 214, 168, 0.4); }
+
+.bubble-cell--manage .bubble-hub { background: var(--accent); }
+.bubble-cell--manage .bubble-node { background: rgba(255, 107, 74, 0.14); border: 1px solid rgba(255, 107, 74, 0.4); }
+
+.bubble-cell--fb .bubble-hub { background: #b7bdfb; }
+.bubble-cell--fb .bubble-node { background: rgba(183, 189, 251, 0.14); border: 1px solid rgba(183, 189, 251, 0.4); }

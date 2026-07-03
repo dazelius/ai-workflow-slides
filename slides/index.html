@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>AI로 내 업무 자동화하기 — 덱 뷰어</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root{
+    --bg:#0b0c10; --panel:#14161d; --line:#262a35; --text:#f5f6f8;
+    --muted:#9195a3; --accent:#ff6b4a;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin:0; height:100%; background:var(--bg); color:var(--text);
+    font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",-apple-system,sans-serif;
+    overflow:hidden;
+  }
+  .app { display:flex; height:100vh; }
+
+  /* 사이드바 */
+  .sidebar {
+    width:280px; flex:none; background:var(--panel); border-right:1px solid var(--line);
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  .sidebar-head { padding:18px 18px 12px; border-bottom:1px solid var(--line); }
+  .sidebar-head .brand { font-size:13px; font-weight:800; letter-spacing:.08em; color:var(--accent); text-transform:uppercase; }
+  .sidebar-head .sub { font-size:12px; color:var(--muted); margin-top:4px; }
+  .thumb-list { flex:1; overflow-y:auto; padding:10px 10px 30px; }
+  .act-label {
+    font-size:11px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--muted); padding:14px 8px 6px;
+  }
+  .thumb {
+    display:flex; align-items:center; gap:8px; padding:9px 10px; border-radius:8px;
+    cursor:pointer; color:var(--muted); font-size:13px; line-height:1.3; user-select:none;
+  }
+  .thumb:hover { background:rgba(255,255,255,0.04); color:var(--text); }
+  .thumb.active { background:rgba(255,107,74,0.12); color:var(--text); }
+  .thumb .idx { flex:none; width:22px; font-variant-numeric:tabular-nums; color:var(--muted); font-weight:700; }
+  .thumb.active .idx { color:var(--accent); }
+  .thumb .todo-dot { flex:none; width:5px; height:5px; border-radius:50%; background:var(--muted); }
+  .thumb .drag-handle, .act-row .drag-handle {
+    flex:none; width:12px; text-align:center; font-size:12px; color:var(--muted);
+    opacity:.4; cursor:grab; letter-spacing:-1px;
+  }
+  .thumb:hover .drag-handle, .act-row:hover .drag-handle { opacity:.9; }
+  .thumb.is-dragging, .act-row.is-dragging { opacity:.35; }
+  .thumb.drop-before, .act-row.drop-before { box-shadow: inset 0 2px 0 0 var(--accent); }
+  .thumb.drop-after, .act-row.drop-after { box-shadow: inset 0 -2px 0 0 var(--accent); }
+  .act-label.drop-before { box-shadow: inset 0 2px 0 0 var(--accent); }
+  .order-status {
+    padding:6px 18px 10px; font-size:11px; color:var(--muted); min-height:14px;
+  }
+  .thumb .t-title { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .thumb .del-btn, .act-row .del-btn {
+    flex:none; width:18px; height:18px; border-radius:5px; border:none;
+    background:transparent; color:var(--muted); font-size:13px; line-height:1;
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    opacity:0; transition:opacity .1s;
+  }
+  .thumb:hover .del-btn, .act-row:hover .del-btn { opacity:.8; }
+  .thumb .del-btn:hover, .act-row .del-btn:hover { opacity:1; background:rgba(255,80,60,0.18); color:#ff6b4a; }
+  .act-row { display:flex; align-items:center; gap:6px; padding:14px 8px 6px; cursor:default; }
+  .act-row .act-label { padding:0; flex:1; }
+  .add-slide-row {
+    display:flex; align-items:center; gap:8px; padding:8px 10px; margin:2px 0 6px;
+    border-radius:8px; border:1px dashed var(--line); color:var(--muted);
+    font-size:12.5px; cursor:pointer; user-select:none;
+  }
+  .add-slide-row:hover { border-color:var(--accent); color:var(--accent); background:rgba(255,107,74,0.06); }
+  .add-act-row {
+    margin:10px 10px 0; padding:9px 10px; border-radius:8px; border:1px dashed var(--line);
+    color:var(--muted); font-size:12.5px; text-align:center; cursor:pointer; user-select:none;
+  }
+  .add-act-row:hover { border-color:var(--accent); color:var(--accent); background:rgba(255,107,74,0.06); }
+  .rename-input {
+    width:100%; font:inherit; color:var(--text); background:#1e212b; border:1px solid var(--accent);
+    border-radius:4px; padding:1px 4px; outline:none; box-sizing:border-box;
+  }
+  .act-label .rename-input { font-size:11px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; }
+
+  /* 메인 뷰어 */
+  .main { flex:1; display:flex; flex-direction:column; min-width:0; }
+  .toolbar {
+    height:52px; flex:none; display:flex; align-items:center; gap:14px;
+    padding:0 20px; border-bottom:1px solid var(--line); background:var(--panel);
+  }
+  .toolbar button {
+    background:transparent; border:1px solid var(--line); color:var(--text);
+    width:32px; height:32px; border-radius:8px; cursor:pointer; font-size:15px;
+  }
+  .toolbar button:hover { border-color:var(--accent); color:var(--accent); }
+  .toolbar .counter { font-size:13px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .toolbar .title-now { font-size:13px; font-weight:700; color:var(--text); }
+  .toolbar .spacer { flex:1; }
+  .toolbar .hint { font-size:11.5px; color:var(--muted); }
+  .toolbar .hint kbd {
+    background:#1e212b; border:1px solid var(--line); border-radius:4px; padding:1px 6px; font-size:11px;
+  }
+  .toolbar .edit-toggle {
+    width:auto; padding:0 12px; font-size:12.5px; font-weight:700; letter-spacing:.02em;
+  }
+  .toolbar .edit-toggle.on {
+    background:var(--accent); border-color:var(--accent); color:#1a0e0a;
+  }
+
+  .server-banner {
+    display:none; align-items:center; gap:10px; padding:8px 20px; font-size:12.5px;
+    background:#2a1f14; color:#e8b988; border-bottom:1px solid #4a3520;
+  }
+  .server-banner code {
+    background:#1c140c; border-radius:4px; padding:2px 6px; font-size:12px;
+  }
+  body.is-file-protocol .server-banner { display:flex; }
+
+  .stage {
+    flex:1; display:flex; align-items:center; justify-content:center;
+    background:#0e0f13;
+    padding:24px;
+  }
+  .frame-wrap {
+    width:100%; height:100%; max-width: calc((100vh - 140px) * 16 / 9);
+    max-height:100%; aspect-ratio:16/9; border:1px solid var(--line);
+    border-radius:6px; overflow:hidden; background:#000;
+  }
+  .frame-wrap iframe { width:100%; height:100%; border:0; display:block; }
+
+  /* 전체화면 슬라이드쇼 모드 — 사이드바/툴바를 숨기고 화면 전체를 슬라이드에 할당 */
+  body.presenting .sidebar { display:none; }
+  body.presenting .toolbar { display:none; }
+  body.presenting .server-banner { display:none !important; }
+  body.presenting .stage { padding:0; background:#000; }
+  body.presenting .frame-wrap {
+    max-width:100vw; max-height:100vh; width:100vw; height:100vh;
+    border:0; border-radius:0;
+  }
+  .present-exit {
+    position:fixed; top:16px; right:16px; z-index:20;
+    width:34px; height:34px; border-radius:50%;
+    background:rgba(20,22,29,0.65); border:1px solid rgba(255,255,255,0.15);
+    color:#f5f6f8; font-size:16px; line-height:1; cursor:pointer;
+    display:none; align-items:center; justify-content:center;
+    opacity:0; transition:opacity .15s;
+  }
+  body.presenting .present-exit { display:flex; }
+  .present-exit.show { opacity:1; }
+  .present-exit:hover { background:rgba(255,107,74,0.85); border-color:var(--accent); }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div class="brand">AI로 내 업무 자동화하기</div>
+      <div class="sub">게임 기획자를 위한 생산성 자동화 가이드</div>
+    </div>
+    <div class="thumb-list" id="thumbList"></div>
+    <div class="order-status" id="orderStatus"></div>
+  </aside>
+
+  <main class="main">
+    <div class="server-banner">
+      저장 기능을 쓰려면 로컬 서버가 필요합니다 — <code>start-editor.bat</code> 실행 후
+      <code>http://localhost:5500</code> 로 접속해주세요. (지금은 파일을 직접 열어 미리보기만 가능)
+    </div>
+    <div class="toolbar">
+      <button id="prevBtn" title="이전 (←)">‹</button>
+      <button id="nextBtn" title="다음 (→)">›</button>
+      <span class="counter" id="counter">1 / 1</span>
+      <span class="title-now" id="titleNow"></span>
+      <span class="spacer"></span>
+      <button class="edit-toggle" id="editToggle" title="슬라이드를 PPT처럼 직접 편집">편집 모드 켜기</button>
+      <button id="presentBtn" title="전체화면 슬라이드쇼 (F5)">⛶</button>
+      <span class="hint"><kbd>←</kbd> <kbd>→</kbd> 이동 · 왼쪽 목록 클릭으로 점프 · <kbd>F5</kbd> 슬라이드쇼</span>
+    </div>
+    <div class="stage">
+      <div class="frame-wrap">
+        <iframe id="stageFrame" title="slide"></iframe>
+      </div>
+      <button class="present-exit" id="presentExit" title="슬라이드쇼 종료 (Esc)">✕</button>
+    </div>
+  </main>
+</div>
+
+<script>
+  // 슬라이드 매니페스트: assets/deck.json 에서 불러옵니다 (file, title, act, todo).
+  // 파일명에는 번호를 넣지 않습니다. 순서는 오직 이 데이터의 순서로 결정되므로
+  // 슬라이드를 추가/삭제/재배치해도 파일명을 바꿀 필요가 없습니다.
+  // 왼쪽 목록에서 드래그로 순서를 바꾸면 assets/deck.json에 자동 저장됩니다
+  // (저장 기능은 로컬 서버로 접속했을 때만 동작합니다).
+  let DECK = [];
+  let FLAT = [];
+
+  function rebuildFlat() {
+    FLAT = DECK.flatMap(g => g.items.map(it => ({...it, act: g.act})));
+  }
+
+  const thumbList = document.getElementById("thumbList");
+  const orderStatus = document.getElementById("orderStatus");
+  const stageFrame = document.getElementById("stageFrame");
+  const counter = document.getElementById("counter");
+  const titleNow = document.getElementById("titleNow");
+  const editToggle = document.getElementById("editToggle");
+  const presentBtn = document.getElementById("presentBtn");
+  const presentExit = document.getElementById("presentExit");
+
+  if (window.location.protocol === "file:") {
+    document.body.classList.add("is-file-protocol");
+  }
+
+  let current = 0;
+  let editMode = false;
+
+  function sendEditMode() {
+    if (stageFrame.contentWindow) {
+      stageFrame.contentWindow.postMessage({ type: "cursor-editor:set-mode", editing: editMode }, "*");
+    }
+  }
+
+  // AI 재생성이 "지금 이 슬라이드 하나"만 보고 맥락 없이 새로 쓰는 걸 막기 위해,
+  // 전체 발표 주제/구성(막·슬라이드 목록)과 이 슬라이드의 위치를 함께 넘겨준다.
+  // deck.json이 바뀔 때마다(추가/삭제/순서변경/이름변경) 다시 계산해서 보낸다.
+  function buildDeckContext() {
+    const outline = [];
+    DECK.forEach((group) => {
+      group.items.forEach((item) => {
+        outline.push({ act: group.act, title: item.title, todo: !!item.todo });
+      });
+    });
+    const cur = FLAT[current] || {};
+    return {
+      deckTitle: document.querySelector(".sidebar-head .brand")?.textContent || "",
+      deckSubtitle: document.querySelector(".sidebar-head .sub")?.textContent || "",
+      outline,
+      currentIndex: current,
+      total: FLAT.length,
+      currentAct: cur.act || "",
+      currentTitle: cur.title || "",
+    };
+  }
+
+  function sendDeckContext() {
+    if (stageFrame.contentWindow) {
+      stageFrame.contentWindow.postMessage(
+        { type: "cursor-editor:deck-context", context: buildDeckContext() },
+        "*"
+      );
+    }
+  }
+
+  editToggle.addEventListener("click", () => {
+    editMode = !editMode;
+    editToggle.textContent = editMode ? "편집 모드 끄기" : "편집 모드 켜기";
+    editToggle.classList.toggle("on", editMode);
+    sendEditMode();
+  });
+
+  stageFrame.addEventListener("load", () => {
+    sendEditMode();
+    sendDeckContext();
+  });
+
+  window.addEventListener("message", (e) => {
+    const data = e.data || {};
+    if (data.type === "cursor-editor:ready") {
+      sendEditMode();
+      sendDeckContext();
+    }
+  });
+
+  /* ------------------------------------------------------------------ */
+  /* 전체화면 슬라이드쇼 모드 — 좌측 패널/툴바 없이 슬라이드만 꽉 채워서 보기        */
+  /* ------------------------------------------------------------------ */
+
+  let presenting = false;
+  let hideExitTimer = null;
+
+  function showExitBtn() {
+    presentExit.classList.add("show");
+    clearTimeout(hideExitTimer);
+    hideExitTimer = setTimeout(() => presentExit.classList.remove("show"), 1800);
+  }
+
+  function enterPresent() {
+    if (presenting) return;
+    presenting = true;
+    if (editMode) {
+      editMode = false;
+      editToggle.textContent = "편집 모드 켜기";
+      editToggle.classList.remove("on");
+      sendEditMode();
+    }
+    document.body.classList.add("presenting");
+    const el = document.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (req) req.call(el).catch(() => {});
+    showExitBtn();
+  }
+
+  function exitPresent() {
+    if (!presenting) return;
+    presenting = false;
+    document.body.classList.remove("presenting");
+    const exitFs = document.exitFullscreen || document.webkitExitFullscreen;
+    if (exitFs && (document.fullscreenElement || document.webkitFullscreenElement)) {
+      exitFs.call(document).catch(() => {});
+    }
+    clearTimeout(hideExitTimer);
+    presentExit.classList.remove("show");
+  }
+
+  function togglePresent() {
+    presenting ? exitPresent() : enterPresent();
+  }
+
+  presentBtn.addEventListener("click", togglePresent);
+  presentExit.addEventListener("click", exitPresent);
+
+  document.addEventListener("fullscreenchange", () => {
+    if (!document.fullscreenElement && presenting) exitPresent();
+  });
+  document.addEventListener("webkitfullscreenchange", () => {
+    if (!document.webkitFullscreenElement && presenting) exitPresent();
+  });
+
+  document.addEventListener("mousemove", () => {
+    if (presenting) showExitBtn();
+  });
+
+  function render() {
+    thumbList.innerHTML = "";
+    let flatIdx = 0;
+    DECK.forEach((group, groupIdx) => {
+      const actRow = document.createElement("div");
+      actRow.className = "act-row";
+      actRow.draggable = true;
+      actRow.dataset.group = String(groupIdx);
+      actRow.innerHTML = `<span class="drag-handle" title="드래그해서 섹션 순서 바꾸기">⋮⋮</span>`;
+      const label = document.createElement("div");
+      label.className = "act-label";
+      label.textContent = group.act;
+      label.title = "더블클릭해서 이름 바꾸기";
+      label.dataset.group = String(groupIdx);
+      label.addEventListener("dblclick", (e) => {
+        e.stopPropagation();
+        startInlineRename(label, group.act, (value) => {
+          group.act = value;
+          render();
+          persistOrder();
+        });
+      });
+      actRow.appendChild(label);
+      const delActBtn = document.createElement("button");
+      delActBtn.type = "button";
+      delActBtn.className = "del-btn";
+      delActBtn.title = "이 섹션 삭제";
+      delActBtn.textContent = "✕";
+      delActBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        deleteAct(groupIdx);
+      });
+      actRow.appendChild(delActBtn);
+      thumbList.appendChild(actRow);
+      group.items.forEach((item, itemIdx) => {
+        const idx = flatIdx;
+        const row = document.createElement("div");
+        row.className = "thumb" + (idx === current ? " active" : "");
+        row.draggable = true;
+        row.dataset.group = String(groupIdx);
+        row.dataset.item = String(itemIdx);
+        row.dataset.flat = String(idx);
+        row.innerHTML = `<span class="drag-handle" title="드래그해서 순서 바꾸기">⋮⋮</span>` +
+          `<span class="idx">${String(idx + 1).padStart(2, "0")}</span>` +
+          `<span class="t-title">${item.title}</span>` +
+          (item.todo ? `<span class="todo-dot" title="세부 내용 채움 필요"></span>` : "") +
+          `<button class="del-btn" title="이 슬라이드 삭제">✕</button>`;
+        row.addEventListener("click", () => go(idx));
+        const titleEl = row.querySelector(".t-title");
+        titleEl.title = "더블클릭해서 이름 바꾸기";
+        titleEl.addEventListener("dblclick", (e) => {
+          e.stopPropagation();
+          startInlineRename(titleEl, item.title, (value) => {
+            item.title = value;
+            if (FLAT[current] && FLAT[current].file === item.file) {
+              titleNow.textContent = value;
+            }
+            render();
+            persistOrder();
+          });
+        });
+        row.querySelector(".del-btn").addEventListener("click", (e) => {
+          e.stopPropagation();
+          deleteSlide(groupIdx, itemIdx);
+        });
+        thumbList.appendChild(row);
+        flatIdx++;
+      });
+      const addRow = document.createElement("div");
+      addRow.className = "add-slide-row";
+      addRow.textContent = "+ 새 슬라이드 추가";
+      addRow.addEventListener("click", () => addSlide(groupIdx));
+      thumbList.appendChild(addRow);
+    });
+    const addAct = document.createElement("div");
+    addAct.className = "add-act-row";
+    addAct.textContent = "+ 새 막(섹션) 추가";
+    addAct.addEventListener("click", addAct_);
+    thumbList.appendChild(addAct);
+    sendDeckContext();
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* 이름 바꾸기 (슬라이드 제목 / 막 이름 둘 다 더블클릭으로)                        */
+  /* ------------------------------------------------------------------ */
+
+  function startInlineRename(el, currentValue, onSave) {
+    if (el.querySelector("input")) return; // 이미 이름 바꾸는 중
+    const original = el.textContent;
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "rename-input";
+    input.value = currentValue;
+    el.textContent = "";
+    el.appendChild(input);
+    input.focus();
+    input.select();
+
+    let done = false;
+    const finish = (save) => {
+      if (done) return;
+      done = true;
+      const value = input.value.trim();
+      if (save && value && value !== currentValue) {
+        onSave(value);
+      } else {
+        el.textContent = original;
+      }
+    };
+    input.addEventListener("keydown", (e) => {
+      e.stopPropagation();
+      if (e.key === "Enter") { e.preventDefault(); finish(true); }
+      if (e.key === "Escape") { e.preventDefault(); finish(false); }
+    });
+    input.addEventListener("click", (e) => e.stopPropagation());
+    input.addEventListener("blur", () => finish(true));
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* 슬라이드 추가 / 삭제                                                        */
+  /* ------------------------------------------------------------------ */
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  }
+
+  function uniqueSlideFile() {
+    return `deck/slide-${Date.now().toString(36)}${Math.floor(Math.random() * 36).toString(36)}.html`;
+  }
+
+  function blankSlideHtml(title) {
+    const safeTitle = escapeHtml(title || "새 슬라이드");
+    return `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>${safeTitle}</title>
+<link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body>
+<div class="slide">
+  <div class="kicker"></div>
+  <p class="title-lg">${safeTitle}</p>
+  <div class="center-stage">
+  </div>
+  <div class="page-number" id="page-number"></div>
+</div>
+  <script src="../assets/page-number.js"><\/script>
+  <script src="../assets/editor.js"><\/script>
+</body>
+</html>
+`;
+  }
+
+  function addSlide(groupIdx) {
+    const title = window.prompt("새 슬라이드 제목을 입력하세요", "새 슬라이드");
+    if (title === null) return;
+    const file = uniqueSlideFile();
+    const html = blankSlideHtml(title);
+    orderStatus.textContent = "슬라이드 생성 중…";
+    fetch("/api/create-slide", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file, html }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data.ok) {
+          orderStatus.textContent = "생성 실패: " + data.error;
+          return;
+        }
+        DECK[groupIdx].items.push({ file, title: title || "새 슬라이드" });
+        rebuildFlat();
+        const newIdx = FLAT.findIndex((it) => it.file === file);
+        render();
+        persistOrder();
+        if (newIdx >= 0) go(newIdx);
+      })
+      .catch(() => {
+        orderStatus.textContent = "생성 실패 (서버가 켜져 있는지 확인하세요)";
+      });
+  }
+
+  function addAct_() {
+    const actName = window.prompt("새 막(섹션) 이름을 입력하세요", "새 섹션");
+    if (actName === null || !actName.trim()) return;
+    DECK.push({ act: actName.trim(), items: [] });
+    render();
+    persistOrder();
+  }
+
+  function deleteAct(groupIdx) {
+    const group = DECK[groupIdx];
+    if (!group) return;
+    if (DECK.length <= 1) {
+      orderStatus.textContent = "마지막 섹션은 삭제할 수 없습니다";
+      return;
+    }
+    const hasItems = group.items.length > 0;
+    const msg = hasItems
+      ? `"${group.act}" 섹션을 삭제할까요?\n안에 있는 슬라이드 ${group.items.length}개는 옆 섹션으로 옮겨집니다.`
+      : `"${group.act}" 섹션을 삭제할까요?`;
+    if (!window.confirm(msg)) return;
+
+    const activeFile = FLAT[current] ? FLAT[current].file : null;
+
+    if (hasItems) {
+      // 앞 섹션이 있으면 그 뒤에 이어붙이고, 첫 섹션이면 다음 섹션 앞에 붙인다 —
+      // 슬라이드는 어떤 경우에도 사라지지 않고 옆 섹션으로 옮겨진다.
+      if (groupIdx > 0) {
+        DECK[groupIdx - 1].items = DECK[groupIdx - 1].items.concat(group.items);
+      } else {
+        DECK[groupIdx + 1].items = group.items.concat(DECK[groupIdx + 1].items);
+      }
+    }
+    DECK.splice(groupIdx, 1);
+    rebuildFlat();
+
+    if (activeFile) {
+      const idx = FLAT.findIndex((it) => it.file === activeFile);
+      current = idx >= 0 ? idx : Math.max(0, Math.min(FLAT.length - 1, current));
+    } else {
+      current = Math.max(0, Math.min(FLAT.length - 1, current));
+    }
+    render();
+    persistOrder();
+    go(current);
+  }
+
+  function moveAct(srcGroup, dstGroup, after) {
+    if (srcGroup === dstGroup) return;
+    const moving = DECK[srcGroup];
+    DECK.splice(srcGroup, 1);
+    let insertIdx = dstGroup;
+    if (srcGroup < insertIdx) insertIdx -= 1;
+    if (after) insertIdx += 1;
+    DECK.splice(insertIdx, 0, moving);
+  }
+
+  function deleteSlide(groupIdx, itemIdx) {
+    const item = DECK[groupIdx].items[itemIdx];
+    if (!item) return;
+    if (FLAT.length <= 1) {
+      orderStatus.textContent = "마지막 슬라이드는 삭제할 수 없습니다";
+      return;
+    }
+    if (!window.confirm(`"${item.title}" 슬라이드를 삭제할까요?\n이 작업은 되돌릴 수 없습니다.`)) return;
+
+    const activeFile = FLAT[current] ? FLAT[current].file : null;
+    const wasActive = activeFile === item.file;
+    const deletedFlatIdx = FLAT.findIndex((it) => it.file === item.file);
+
+    DECK[groupIdx].items.splice(itemIdx, 1);
+    rebuildFlat();
+
+    fetch("/api/delete-slide", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file: item.file }),
+    }).catch(() => {});
+
+    if (wasActive) {
+      current = Math.max(0, Math.min(FLAT.length - 1, deletedFlatIdx));
+    } else if (activeFile) {
+      const idx = FLAT.findIndex((it) => it.file === activeFile);
+      current = idx >= 0 ? idx : Math.max(0, Math.min(FLAT.length - 1, current));
+    }
+    render();
+    persistOrder();
+    go(current);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* 드래그 & 드롭으로 슬라이드 순서 바꾸기                                     */
+  /* ------------------------------------------------------------------ */
+
+  let dragCtx = null; // { kind: "item", group, item } | { kind: "act", group }
+
+  function clearDropHighlights() {
+    thumbList.querySelectorAll(".drop-before, .drop-after").forEach((el) => {
+      el.classList.remove("drop-before", "drop-after");
+    });
+  }
+
+  function moveSlide(srcGroup, srcItem, dstGroup, dstItem, after) {
+    const moving = DECK[srcGroup].items[srcItem];
+    DECK[srcGroup].items.splice(srcItem, 1);
+    let insertGroup = dstGroup;
+    let insertIdx = dstItem;
+    if (srcGroup === insertGroup && srcItem < insertIdx) insertIdx -= 1;
+    if (after) insertIdx += 1;
+    DECK[insertGroup].items.splice(insertIdx, 0, moving);
+  }
+
+  function persistOrder() {
+    orderStatus.textContent = "순서 저장 중…";
+    fetch("/api/save-manifest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deck: DECK }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        orderStatus.textContent = data.ok ? "순서 저장됨" : "저장 실패: " + data.error;
+      })
+      .catch(() => {
+        orderStatus.textContent = "저장 실패 (서버가 켜져 있는지 확인하세요)";
+      });
+  }
+
+  function afterReorder() {
+    const activeFile = FLAT[current] ? FLAT[current].file : null;
+    rebuildFlat();
+    if (activeFile) {
+      const idx = FLAT.findIndex((it) => it.file === activeFile);
+      if (idx >= 0) current = idx;
+    }
+    counter.textContent = `${current + 1} / ${FLAT.length}`;
+    titleNow.textContent = FLAT[current] ? FLAT[current].title : "";
+    render();
+    const activeEl = thumbList.querySelector(".thumb.active");
+    if (activeEl) activeEl.scrollIntoView({ block: "nearest" });
+    persistOrder();
+  }
+
+  thumbList.addEventListener("dragstart", (e) => {
+    // 슬라이드 항목(.thumb)뿐 아니라 섹션 행(.act-row) 자체도 드래그로 순서를
+    // 바꿀 수 있다. 어느 걸 드래그하는 중인지 dragCtx.kind로 구분한다.
+    const actRow = e.target.closest(".act-row");
+    if (actRow) {
+      dragCtx = { kind: "act", group: Number(actRow.dataset.group) };
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", "");
+      setTimeout(() => actRow.classList.add("is-dragging"), 0);
+      return;
+    }
+    const row = e.target.closest(".thumb");
+    if (!row) return;
+    dragCtx = { kind: "item", group: Number(row.dataset.group), item: Number(row.dataset.item) };
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", "");
+    setTimeout(() => row.classList.add("is-dragging"), 0);
+  });
+
+  thumbList.addEventListener("dragend", (e) => {
+    const row = e.target.closest(".thumb") || e.target.closest(".act-row");
+    if (row) row.classList.remove("is-dragging");
+    clearDropHighlights();
+    dragCtx = null;
+  });
+
+  thumbList.addEventListener("dragover", (e) => {
+    if (!dragCtx) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    clearDropHighlights();
+
+    if (dragCtx.kind === "act") {
+      // 섹션을 드래그 중일 때는 다른 섹션 행 위에서만 놓을 수 있다.
+      const actRow = e.target.closest(".act-row");
+      if (!actRow) return;
+      const rect = actRow.getBoundingClientRect();
+      const after = e.clientY - rect.top > rect.height / 2;
+      actRow.classList.add(after ? "drop-after" : "drop-before");
+      return;
+    }
+
+    const label = e.target.closest(".act-label");
+    if (label) {
+      label.classList.add("drop-before");
+      return;
+    }
+    const row = e.target.closest(".thumb");
+    if (!row) return;
+    const rect = row.getBoundingClientRect();
+    const after = e.clientY - rect.top > rect.height / 2;
+    row.classList.add(after ? "drop-after" : "drop-before");
+  });
+
+  thumbList.addEventListener("drop", (e) => {
+    if (!dragCtx) return;
+    e.preventDefault();
+
+    if (dragCtx.kind === "act") {
+      const actRow = e.target.closest(".act-row");
+      clearDropHighlights();
+      if (actRow) {
+        const rect = actRow.getBoundingClientRect();
+        const after = e.clientY - rect.top > rect.height / 2;
+        moveAct(dragCtx.group, Number(actRow.dataset.group), after);
+      }
+      dragCtx = null;
+      afterReorder();
+      return;
+    }
+
+    const label = e.target.closest(".act-label");
+    if (label) {
+      moveSlide(dragCtx.group, dragCtx.item, Number(label.dataset.group), 0, false);
+      clearDropHighlights();
+      dragCtx = null;
+      afterReorder();
+      return;
+    }
+    const row = e.target.closest(".thumb");
+    clearDropHighlights();
+    if (!row) {
+      dragCtx = null;
+      return;
+    }
+    const rect = row.getBoundingClientRect();
+    const after = e.clientY - rect.top > rect.height / 2;
+    moveSlide(dragCtx.group, dragCtx.item, Number(row.dataset.group), Number(row.dataset.item), after);
+    dragCtx = null;
+    afterReorder();
+  });
+
+  // 목록 전체를 다시 그리지 않고 활성(현재) 슬라이드 표시만 갱신한다.
+  // (예전엔 go()가 매번 render()로 목록 전체를 새로 만들었는데, 그러면 더블클릭으로
+  // 이름을 바꾸려 할 때 첫 번째 클릭이 이미 목록을 통째로 재생성해버려서 두 번째
+  // 클릭/더블클릭이 이미 사라진 옛날 엘리먼트에 떨어지는 바람에 이름 바꾸기 입력창이
+  // 화면에 보이지 않는 채로 죽어있는 문제가 있었다.)
+  function updateActiveThumb() {
+    thumbList.querySelectorAll(".thumb").forEach((el) => {
+      el.classList.toggle("active", Number(el.dataset.flat) === current);
+    });
+  }
+
+  function go(idx) {
+    current = Math.max(0, Math.min(FLAT.length - 1, idx));
+    stageFrame.src = `${FLAT[current].file}?n=${current + 1}&total=${FLAT.length}`;
+    counter.textContent = `${current + 1} / ${FLAT.length}`;
+    titleNow.textContent = FLAT[current].title;
+    updateActiveThumb();
+    sendDeckContext();
+    const activeEl = thumbList.querySelector(".thumb.active");
+    if (activeEl) activeEl.scrollIntoView({ block: "nearest" });
+  }
+
+  document.getElementById("prevBtn").addEventListener("click", () => go(current - 1));
+  document.getElementById("nextBtn").addEventListener("click", () => go(current + 1));
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowRight" || e.key === "PageDown") go(current + 1);
+    if (e.key === "ArrowLeft" || e.key === "PageUp") go(current - 1);
+    if (e.key === "F5") { e.preventDefault(); togglePresent(); }
+    if (e.key === "Escape" && presenting) exitPresent();
+  });
+
+  fetch("assets/deck.json", { cache: "no-store" })
+    .then((r) => r.json())
+    .then((data) => {
+      DECK = data;
+      rebuildFlat();
+      render();
+      go(0);
+    })
+    .catch(() => {
+      thumbList.innerHTML = '<div class="order-status" style="padding:14px 10px;">슬라이드 목록을 불러오지 못했습니다.<br>start-editor.bat 실행 후<br>http://localhost:5500 으로 접속해주세요.</div>';
+    });
+</script>
+</body>
+</html>

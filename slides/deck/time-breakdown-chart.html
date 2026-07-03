@@ -1,0 +1,61 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>시간 비중 시각화</title>
+<link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body>
+<div class="slide">
+  <div class="kicker">진짜 일 · 02</div>
+  <p class="title-lg">하루 8시간, 어디에 쓰고 있는가</p>
+
+  <div class="donut-hero">
+    <div class="donut" style="--donut-stops:
+      #ff6b4a 0% 25%,
+      #5a5d64 25% 45%,
+      #6f7278 45% 60%,
+      #84878d 60% 75%,
+      #999da5 75% 90%,
+      #b6b9c0 90% 100%;">
+      <div class="donut-center">
+        <div class="donut-center-num">25<span>%</span></div>
+        <div class="donut-center-label">문서 작성 · 가장 큰 비중</div>
+      </div>
+    </div>
+
+    <div class="donut-hero-legend">
+      <div class="legend-row">
+        <div class="legend-row-top"><span class="legend-dot" style="background:#ff6b4a;"></span>문서 작성<span class="legend-value">25%</span></div>
+        <div class="legend-bar"><div class="legend-bar-fill" style="width:25%; background:#ff6b4a;"></div></div>
+      </div>
+      <div class="legend-row">
+        <div class="legend-row-top"><span class="legend-dot" style="background:#5a5d64;"></span>회의<span class="legend-value">20%</span></div>
+        <div class="legend-bar"><div class="legend-bar-fill" style="width:20%; background:#5a5d64;"></div></div>
+      </div>
+      <div class="legend-row">
+        <div class="legend-row-top"><span class="legend-dot" style="background:#6f7278;"></span>데이터 작업<span class="legend-value">15%</span></div>
+        <div class="legend-bar"><div class="legend-bar-fill" style="width:15%; background:#6f7278;"></div></div>
+      </div>
+      <div class="legend-row">
+        <div class="legend-row-top"><span class="legend-dot" style="background:#84878d;"></span>테스트<span class="legend-value">15%</span></div>
+        <div class="legend-bar"><div class="legend-bar-fill" style="width:15%; background:#84878d;"></div></div>
+      </div>
+      <div class="legend-row">
+        <div class="legend-row-top"><span class="legend-dot" style="background:#999da5;"></span>업무 관리<span class="legend-value">15%</span></div>
+        <div class="legend-bar"><div class="legend-bar-fill" style="width:15%; background:#999da5;"></div></div>
+      </div>
+      <div class="legend-row">
+        <div class="legend-row-top"><span class="legend-dot" style="background:#b6b9c0;"></span>피드백<span class="legend-value">10%</span></div>
+        <div class="legend-bar"><div class="legend-bar-fill" style="width:10%; background:#b6b9c0;"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-tag">TODO · 실제 업무 로그 수치로 교체 권장</div>
+  <div class="page-number" id="page-number"></div>
+</div>
+  <script src="../assets/page-number.js"></script>
+  <script src="../assets/editor.js"></script>
+</body>
+</html>

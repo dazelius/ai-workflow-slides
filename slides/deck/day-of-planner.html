@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ko"><head>
+<meta charset="UTF-8">
+<title>기획자 A의 하루</title>
+<link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+<div class="slide">
+  <div class="kicker">진짜 일 · 01</div>
+  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:1.2vw;">
+    <p class="title-lg">기획자 A의 하루</p>
+    <div class="tag" style="white-space:nowrap; margin-bottom:0.4vw;"><br></div>
+  </div>
+
+  <div class="bubble-stage" id="bubbleStage">
+    <div class="bubble-cell bubble-cell--doc">
+      <div class="bubble-cell-label">01</div>
+      <div class="bubble-hub">문서<br>작성</div>
+      <div class="bubble-node" style="left:50%; top:9%; width:5.6vw; height:5.6vw; --d:0.00s;">레퍼런스 조사</div>
+      <div class="bubble-node" style="left:89%; top:32%; width:5.2vw; height:5.2vw; --d:0.07s;">경쟁작 분석</div>
+      <div class="bubble-node" style="left:78%; top:85%; width:5.6vw; height:5.6vw; --d:0.14s;">핵심 재미 정의</div>
+      <div class="bubble-node" style="left:20%; top:88%; width:5.8vw; height:5.8vw; --d:0.21s;">시스템 구조 설계</div>
+      <div class="bubble-node" style="left:9%; top:34%; width:5.6vw; height:5.6vw; --d:0.28s;">이해관계자 설득</div>
+    </div>
+
+    <div class="bubble-cell bubble-cell--data">
+      <div class="bubble-cell-label">02</div>
+      <div class="bubble-hub">데이터<br>작업</div>
+      <div class="bubble-node" style="left:50%; top:10%; width:5.4vw; height:5.4vw; --d:0.00s;">수치 입력</div>
+      <div class="bubble-node" style="left:90%; top:42%; width:6vw; height:6vw; --d:0.07s;">밸런스 데이터 설계</div>
+      <div class="bubble-node" style="left:70%; top:88%; width:6vw; height:6vw; --d:0.14s;">시뮬레이션 돌리기</div>
+      <div class="bubble-node" style="left:13%; top:70%; width:5.6vw; height:5.6vw; --d:0.21s;">수치 튜닝 반복</div>
+    </div>
+
+    <div class="bubble-cell bubble-cell--test">
+      <div class="bubble-cell-label">03</div>
+      <div class="bubble-hub">테스트</div>
+      <div class="bubble-node" style="left:50%; top:10%; width:6.4vw; height:6.4vw; --d:0.00s;">의도대로 동작하는지 검증</div>
+      <div class="bubble-node" style="left:90%; top:44%; width:5.6vw; height:5.6vw; --d:0.07s;">버그 리포트 작성</div>
+      <div class="bubble-node" style="left:70%; top:88%; width:4.8vw; height:4.8vw; --d:0.14s;">재검증</div>
+      <div class="bubble-node" style="left:14%; top:68%; width:4.8vw; height:4.8vw; --d:0.21s;">필드 확인</div>
+    </div>
+
+    <div class="bubble-cell bubble-cell--meeting">
+      <div class="bubble-cell-label">04</div>
+      <div class="bubble-hub">회의</div>
+      <div class="bubble-node" style="left:50%; top:10%; width:5.6vw; height:5.6vw; --d:0.00s;">안건 사전 정리</div>
+      <div class="bubble-node" style="left:90%; top:42%; width:5.4vw; height:5.4vw; --d:0.07s;">회의록 작성</div>
+      <div class="bubble-node" style="left:70%; top:88%; width:5.6vw; height:5.6vw; --d:0.14s;">의사결정 추적</div>
+      <div class="bubble-node" style="left:13%; top:70%; width:5.6vw; height:5.6vw; --d:0.21s;">후속 액션 정리</div>
+    </div>
+
+    <div class="bubble-cell bubble-cell--manage">
+      <div class="bubble-cell-label">05</div>
+      <div class="bubble-hub">업무<br>관리</div>
+      <div class="bubble-node" style="left:50%; top:10%; width:4.8vw; height:4.8vw; --d:0.00s;">일정 조율</div>
+      <div class="bubble-node" style="left:90%; top:42%; width:5.8vw; height:5.8vw; --d:0.07s;">우선순위 재조정</div>
+      <div class="bubble-node" style="left:70%; top:88%; width:5vw; height:5vw; --d:0.14s;">리소스 파악</div>
+      <div class="bubble-node" style="left:13%; top:70%; width:5.2vw; height:5.2vw; --d:0.21s;">이슈 트래킹</div>
+    </div>
+
+    <div class="bubble-cell bubble-cell--fb">
+      <div class="bubble-cell-label">06</div>
+      <div class="bubble-hub">피드백</div>
+      <div class="bubble-node" style="left:50%; top:10%; width:6vw; height:6vw; --d:0.00s;">피드백 정리·반영</div>
+      <div class="bubble-node" style="left:90%; top:42%; width:5.6vw; height:5.6vw; --d:0.07s;">로그·수치 확인</div>
+      <div class="bubble-node" style="left:70%; top:88%; width:5.6vw; height:5.6vw; --d:0.14s;">반대 의견 대응</div>
+      <div class="bubble-node" style="left:13%; top:70%; width:5.2vw; height:5.2vw; --d:0.21s;">이해관계자 소통</div>
+    </div>
+  </div>
+
+  <div class="page-number" id="page-number">14 / 44</div>
+</div>
+  <script>
+    (function () {
+      var stage = document.getElementById("bubbleStage");
+      if (!stage) return;
+      stage.addEventListener("click", function (e) {
+        var hub = e.target.closest(".bubble-hub");
+        if (!hub) return;
+        var cell = hub.closest(".bubble-cell");
+        if (cell) cell.classList.toggle("is-open");
+      });
+    })();
+  </script>
+  <script src="../assets/page-number.js"></script>
+  <script src="../assets/editor.js"></script>
+
+
+</body></html>

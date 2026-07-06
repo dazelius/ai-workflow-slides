@@ -26,13 +26,37 @@
   .sidebar-head .brand { font-size:13px; font-weight:800; letter-spacing:.08em; color:var(--accent); text-transform:uppercase; }
   .sidebar-head .sub { font-size:12px; color:var(--muted); margin-top:4px; }
   .thumb-list { flex:1; overflow-y:auto; padding:10px 10px 30px; }
-  .act-label {
-    font-size:11px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
-    color:var(--muted); padding:14px 8px 6px;
+
+  /* 섹션(막) 헤더 — 슬라이드 항목과 한눈에 구분되도록 카드형 배경 + 좌측 포인트
+     보더 + 굵은 라벨 + 슬라이드 개수 배지를 준다. 클릭하면 접고 펼 수 있다. */
+  .act-group { margin-top:10px; }
+  .act-group:first-child { margin-top:0; }
+  .act-row {
+    display:flex; align-items:center; gap:7px; padding:9px 9px; cursor:pointer;
+    border-radius:8px; background:rgba(255,107,74,0.08); border:1px solid rgba(255,107,74,0.16);
+    border-left:3px solid var(--accent);
   }
+  .act-row:hover { background:rgba(255,107,74,0.13); }
+  .act-row .chevron {
+    flex:none; width:14px; text-align:center; font-size:9px; color:var(--muted);
+  }
+  .act-label {
+    font-size:12px; font-weight:800; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--text); padding:0; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .act-row .act-count {
+    flex:none; font-size:10.5px; font-weight:700; color:var(--muted); background:rgba(255,255,255,0.07);
+    border-radius:999px; padding:1px 7px; font-variant-numeric:tabular-nums;
+  }
+  /* 섹션 안의 슬라이드들은 왼쪽에 얇은 안내선을 두고 살짝 들여써서, 헤더 아래에
+     "속해있다"는 느낌을 시각적으로 준다. */
+  .act-items {
+    margin:4px 0 6px 10px; padding-left:9px; border-left:1px dashed var(--line);
+  }
+  .act-items.is-collapsed { display:none; }
   .thumb {
-    display:flex; align-items:center; gap:8px; padding:9px 10px; border-radius:8px;
-    cursor:pointer; color:var(--muted); font-size:13px; line-height:1.3; user-select:none;
+    display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:8px;
+    cursor:pointer; color:var(--muted); font-size:12.5px; line-height:1.3; user-select:none;
   }
   .thumb:hover { background:rgba(255,255,255,0.04); color:var(--text); }
   .thumb.active { background:rgba(255,107,74,0.12); color:var(--text); }
@@ -60,8 +84,6 @@
   }
   .thumb:hover .del-btn, .act-row:hover .del-btn { opacity:.8; }
   .thumb .del-btn:hover, .act-row .del-btn:hover { opacity:1; background:rgba(255,80,60,0.18); color:#ff6b4a; }
-  .act-row { display:flex; align-items:center; gap:6px; padding:14px 8px 6px; cursor:default; }
-  .act-row .act-label { padding:0; flex:1; }
   .add-slide-row {
     display:flex; align-items:center; gap:8px; padding:8px 10px; margin:2px 0 6px;
     border-radius:8px; border:1px dashed var(--line); color:var(--muted);
@@ -190,6 +212,8 @@
   // (저장 기능은 로컬 서버로 접속했을 때만 동작합니다).
   let DECK = [];
   let FLAT = [];
+  // 접힌 섹션들을 act 이름으로 기록한다(새로고침하면 다시 펼쳐진 상태로 시작).
+  const collapsedActs = new Set();
 
   function rebuildFlat() {
     FLAT = DECK.flatMap(g => g.items.map(it => ({...it, act: g.act})));
@@ -331,11 +355,24 @@
     thumbList.innerHTML = "";
     let flatIdx = 0;
     DECK.forEach((group, groupIdx) => {
+      const groupStart = flatIdx;
+      const containsActive = current >= groupStart && current < groupStart + group.items.length;
+      // 지금 보고 있는 슬라이드가 속한 섹션은, 접혀 있었더라도 자동으로 펼쳐서
+      // 사이드바에서 위치를 놓치지 않게 한다.
+      if (containsActive) collapsedActs.delete(group.act);
+      const collapsed = collapsedActs.has(group.act);
+
+      const actGroupEl = document.createElement("div");
+      actGroupEl.className = "act-group";
+
       const actRow = document.createElement("div");
       actRow.className = "act-row";
       actRow.draggable = true;
       actRow.dataset.group = String(groupIdx);
-      actRow.innerHTML = `<span class="drag-handle" title="드래그해서 섹션 순서 바꾸기">⋮⋮</span>`;
+      actRow.title = "클릭해서 섹션 접기/펼치기";
+      actRow.innerHTML =
+        `<span class="drag-handle" title="드래그해서 섹션 순서 바꾸기">⋮⋮</span>` +
+        `<span class="chevron">${collapsed ? "▸" : "▾"}</span>`;
       const label = document.createElement("div");
       label.className = "act-label";
       label.textContent = group.act;
@@ -344,12 +381,20 @@
       label.addEventListener("dblclick", (e) => {
         e.stopPropagation();
         startInlineRename(label, group.act, (value) => {
+          if (collapsedActs.has(group.act)) {
+            collapsedActs.delete(group.act);
+            collapsedActs.add(value);
+          }
           group.act = value;
           render();
           persistOrder();
         });
       });
       actRow.appendChild(label);
+      const countBadge = document.createElement("span");
+      countBadge.className = "act-count";
+      countBadge.textContent = String(group.items.length);
+      actRow.appendChild(countBadge);
       const delActBtn = document.createElement("button");
       delActBtn.type = "button";
       delActBtn.className = "del-btn";
@@ -360,7 +405,16 @@
         deleteAct(groupIdx);
       });
       actRow.appendChild(delActBtn);
-      thumbList.appendChild(actRow);
+      actRow.addEventListener("click", (e) => {
+        if (e.target.closest(".act-label") || e.target.closest(".del-btn") || e.target.closest(".drag-handle")) return;
+        if (collapsedActs.has(group.act)) collapsedActs.delete(group.act);
+        else collapsedActs.add(group.act);
+        render();
+      });
+      actGroupEl.appendChild(actRow);
+
+      const itemsWrap = document.createElement("div");
+      itemsWrap.className = "act-items" + (collapsed ? " is-collapsed" : "");
       group.items.forEach((item, itemIdx) => {
         const idx = flatIdx;
         const row = document.createElement("div");
@@ -392,14 +446,16 @@
           e.stopPropagation();
           deleteSlide(groupIdx, itemIdx);
         });
-        thumbList.appendChild(row);
+        itemsWrap.appendChild(row);
         flatIdx++;
       });
       const addRow = document.createElement("div");
       addRow.className = "add-slide-row";
       addRow.textContent = "+ 새 슬라이드 추가";
       addRow.addEventListener("click", () => addSlide(groupIdx));
-      thumbList.appendChild(addRow);
+      itemsWrap.appendChild(addRow);
+      actGroupEl.appendChild(itemsWrap);
+      thumbList.appendChild(actGroupEl);
     });
     const addAct = document.createElement("div");
     addAct.className = "add-act-row";
@@ -762,7 +818,15 @@
     stageFrame.src = `${FLAT[current].file}?n=${current + 1}&total=${FLAT.length}`;
     counter.textContent = `${current + 1} / ${FLAT.length}`;
     titleNow.textContent = FLAT[current].title;
-    updateActiveThumb();
+    // 이동한 슬라이드가 접혀 있는 섹션 안에 있으면 펼쳐야 목록에서 보이므로,
+    // 그때만 예외적으로 목록 전체를 다시 그린다.
+    const activeAct = FLAT[current] && FLAT[current].act;
+    if (activeAct && collapsedActs.has(activeAct)) {
+      collapsedActs.delete(activeAct);
+      render();
+    } else {
+      updateActiveThumb();
+    }
     sendDeckContext();
     const activeEl = thumbList.querySelector(".thumb.active");
     if (activeEl) activeEl.scrollIntoView({ block: "nearest" });

@@ -122,6 +122,14 @@
       {
         "file": "deck/slide-mr4fgqme5.html",
         "title": "임베드"
+      },
+      {
+        "file": "deck/slide-mr8k6u14o.html",
+        "title": "로컬라이징 사례"
+      },
+      {
+        "file": "deck/slide-mr8k57o22.html",
+        "title": "로컬라이징"
       }
     ]
   },
@@ -214,6 +222,22 @@
         "title": "데이터 입력"
       },
       {
+        "file": "deck/slide-mr8kru9lm.html",
+        "title": "배치 사례"
+      },
+      {
+        "file": "deck/slide-mr8kjkmrg.html",
+        "title": "기존 상황"
+      },
+      {
+        "file": "deck/slide-mr8kioche.html",
+        "title": "몬스터 배치툴"
+      },
+      {
+        "file": "deck/slide-mr8ks5o0v.html",
+        "title": "블록아웃 사례"
+      },
+      {
         "file": "deck/slide-mr4ggixay.html",
         "title": "프로시저럴 방식"
       },
@@ -224,6 +248,15 @@
       {
         "file": "deck/slide-mr4gk05e0.html",
         "title": "결과"
+      }
+    ]
+  },
+  {
+    "act": "챗봇",
+    "items": [
+      {
+        "file": "deck/slide-mr8j0mxuj.html",
+        "title": "새 슬라이드"
       }
     ]
   },
@@ -305,7 +338,7 @@
     "items": [
       {
         "file": "deck/summary.html",
-        "title": "오늘 배운 것 요약"
+        "title": "마치며"
       },
       {
         "file": "deck/closing-message.html",

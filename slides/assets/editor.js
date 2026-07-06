@@ -13,7 +13,8 @@
   var ROOT_SELECTOR = ".slide";
   var UI_ID = "__cursor_editor_ui";
   var AI_PANEL_ID = "__cursor_ai_panel";
-  var aiMode = null; // "text" | "image" | null
+  // AI 챗봇은 버튼을 여러 개로 나누지 않고, 자연어 요청 하나를 받아서
+  // 서버(/api/ai/route)가 text/image/app 중 뭘 할지 알아서 판단하게 한다.
   var deckContext = null; // index.html이 postMessage로 보내주는 전체 발표 맥락 정보
   var dragState = null;
   var history = [];
@@ -89,6 +90,19 @@
       "color:#fff;font-weight:700;}" +
       "#" + AI_PANEL_ID + " .ai-actions button:disabled{opacity:.5;cursor:default;}" +
       "#" + AI_PANEL_ID + " .ai-status{font-size:11.5px;color:#8a8d95;}" +
+      // 챗봇처럼 지난 요청/결과를 말풍선으로 쌓아 보여주는 대화 로그.
+      // 내용이 없으면 flex 컨테이너가 그냥 0높이로 접혀서 평소엔 자리를 차지하지 않는다.
+      "#" + AI_PANEL_ID + " .ai-chat-log{display:flex;flex-direction:column;gap:6px;" +
+      "max-height:160px;overflow-y:auto;}" +
+      "#" + AI_PANEL_ID + " .ai-msg{max-width:85%;padding:6px 10px;border-radius:10px;font-size:12px;" +
+      "line-height:1.45;word-break:break-word;}" +
+      "#" + AI_PANEL_ID + " .ai-msg.user{align-self:flex-end;background:#3a2f57;color:#eceded;" +
+      "border:1px solid #5a4a8f;}" +
+      "#" + AI_PANEL_ID + " .ai-msg.assistant{align-self:flex-start;background:#20222a;color:#c7cad1;" +
+      "border:1px solid #34363d;}" +
+      "#" + AI_PANEL_ID + " .ai-msg.error{border-color:#a33a3a;color:#ff9a8a;}" +
+      "#" + AI_PANEL_ID + " .ai-msg img{display:block;max-width:160px;max-height:110px;border-radius:6px;" +
+      "margin-top:4px;}" +
       "." + ROOT_SELECTOR.replace(".", "") + "[contenteditable='true']{outline:2px dashed #ff6b4a55;outline-offset:-2px;}" +
       ".free-el{cursor:move;outline:1px dashed transparent;}" +
       ".free-el:hover{outline-color:#ff6b4a88;}" +
@@ -110,9 +124,24 @@
       // 사라지고 iframe이 다시 살아나서 발표 중엔 영상 재생·임베드 조작이 된다.)
       "." + ROOT_SELECTOR.replace(".", "") + "[contenteditable='true'] .free-el--video iframe," +
       "." + ROOT_SELECTOR.replace(".", "") + "[contenteditable='true'] .free-el--video video," +
-      "." + ROOT_SELECTOR.replace(".", "") + "[contenteditable='true'] .free-el--embed iframe{pointer-events:none;}" +
+      "." + ROOT_SELECTOR.replace(".", "") + "[contenteditable='true'] .free-el--embed iframe," +
+      "." + ROOT_SELECTOR.replace(".", "") + "[contenteditable='true'] .free-el--app iframe{pointer-events:none;}" +
       ".free-el-shield{position:absolute;inset:0;z-index:1;background:transparent;display:none;}" +
-      "." + ROOT_SELECTOR.replace(".", "") + "[contenteditable='true'] .free-el-shield{display:block;}";
+      "." + ROOT_SELECTOR.replace(".", "") + "[contenteditable='true'] .free-el-shield{display:block;}" +
+      "#" + AI_PANEL_ID + " .ai-stream{display:none;max-height:160px;overflow:auto;margin:0;" +
+      "font-family:'SF Mono',Consolas,'Courier New',monospace;font-size:11px;line-height:1.5;" +
+      "color:#9fe6a0;background:#0c0d10;border:1px solid #2b2d33;border-radius:6px;padding:8px 10px;" +
+      "white-space:pre-wrap;word-break:break-all;}" +
+      // 이미지는 부분 결과(partial_images)가 실제로 도착하는 대로 그대로 보여주되,
+      // 그 위에 오렌지 스캔 라인을 계속 흘려서 "지금 생성되고 있다"는 느낌을 강조한다.
+      "#" + AI_PANEL_ID + " .ai-image-preview-wrap{display:none;position:relative;width:220px;" +
+      "height:140px;overflow:hidden;border:1px solid #2b2d33;border-radius:6px;background:#0c0d10;}" +
+      "#" + AI_PANEL_ID + " .ai-image-preview{display:block;width:100%;height:100%;object-fit:contain;" +
+      "background:#0c0d10;}" +
+      "#" + AI_PANEL_ID + " .ai-scanline{position:absolute;left:0;right:0;top:0;height:3px;" +
+      "background:linear-gradient(90deg,transparent,#ff6b4a,transparent);" +
+      "box-shadow:0 0 10px 2px #ff6b4a99;animation:__cursor_ai_scan 1.6s linear infinite;}" +
+      "@keyframes __cursor_ai_scan{0%{top:0;}100%{top:100%;}}";
     document.head.appendChild(style);
 
     var wrap = document.createElement("div");
@@ -151,13 +180,11 @@
       '<button data-cmd="youtube" title="유튜브 링크 또는 .mp4/.webm 영상 파일 링크 삽입">동영상</button>' +
       '<button data-cmd="embed" title="dbdiagram·Figma·구글지도 등 &lt;iframe&gt; 임베드 코드/링크 삽입">임베드</button>' +
       '<span class="cesep"></span>' +
-      '<span class="celabel">AI</span>' +
-      '<button class="ai-btn" data-cmd="ai-text" title="프롬프트로 이 슬라이드 내용을 AI가 작성/수정합니다 (Claude)">✨ AI 작성</button>' +
-      '<button class="ai-btn" data-cmd="ai-image" title="프롬프트로 이미지를 생성해 삽입합니다 (OpenAI)">✨ AI 이미지</button>' +
+      '<button class="ai-btn" data-cmd="ai-chat" title="자연어로 요청하면 알아서 슬라이드 내용을 고치거나, 이미지를 그리거나, 인터랙티브 데모를 만듭니다">AI 챗봇</button>' +
       '<span class="cesep"></span>' +
       '<span class="celabel">선택 요소</span>' +
       '<button data-cmd="front" title="맨 앞으로">앞으로</button>' +
-      '<button data-cmd="back" title="맨 뒤로">뒤로</button>' +
+      '<button data-cmd="back" title="맨 뒤로 (겹친 요소는 Alt+클릭으로도 한 칸씩 선택할 수 있어요)">뒤로</button>' +
       '<button data-cmd="dup" title="복제 (Ctrl+D)">복제</button>' +
       '<button data-cmd="del-selected" title="삭제 (Delete)">삭제</button>' +
       '<span class="cesep"></span>' +
@@ -171,11 +198,14 @@
       '<span class="cestatus"></span>' +
       "</div>" +
       '<div id="' + AI_PANEL_ID + '">' +
-      '<div class="ai-title"></div>' +
+      '<div class="ai-title">AI 챗봇 · 텍스트 수정 · 이미지 생성 · 인터랙티브 데모를 한 곳에서</div>' +
       '<div class="ai-context"></div>' +
-      '<textarea class="ai-input" rows="2"></textarea>' +
+      '<div class="ai-chat-log"></div>' +
+      '<pre class="ai-stream"></pre>' +
+      '<div class="ai-image-preview-wrap"><img class="ai-image-preview" alt="생성 중인 이미지 미리보기" /><div class="ai-scanline"></div></div>' +
+      '<textarea class="ai-input" rows="2" placeholder="예: 이 슬라이드 제목을 더 강하게 바꿔줘 / 오렌지톤 아이콘 그려줘 / 방향키로 조작하는 팩맨 게임 만들어줘"></textarea>' +
       '<div class="ai-actions">' +
-      '<button data-cmd="ai-run" title="Ctrl+Enter">생성</button>' +
+      '<button data-cmd="ai-run" title="Ctrl+Enter">전송</button>' +
       '<button data-cmd="ai-cancel">닫기</button>' +
       '<span class="ai-status"></span>' +
       "</div>" +
@@ -218,8 +248,7 @@
       else if (cmd === "image") insertImage();
       else if (cmd === "youtube") insertYoutube();
       else if (cmd === "embed") insertEmbed();
-      else if (cmd === "ai-text") toggleAiPanel("text");
-      else if (cmd === "ai-image") toggleAiPanel("image");
+      else if (cmd === "ai-chat") toggleAiPanel();
       else if (cmd === "ai-run") runAi();
       else if (cmd === "ai-cancel") closeAiPanel();
       else if (cmd === "front") { var s1 = getSelectedFreeEl(); if (s1) bringToFront(s1); }
@@ -269,31 +298,45 @@
     line.textContent = parts.join(" · ");
   }
 
-  function toggleAiPanel(mode) {
+  function toggleAiPanel() {
     var panel = document.getElementById(AI_PANEL_ID);
     if (!panel) return;
-    if (aiMode === mode && panel.style.display !== "none") {
+    if (panel.style.display === "flex") {
       closeAiPanel();
       return;
     }
-    aiMode = mode;
     panel.style.display = "flex";
-    panel.querySelector(".ai-title").textContent =
-      mode === "image" ? "AI 이미지 생성 (OpenAI · gpt-image-2)" : "AI로 슬라이드 작성/수정 (Claude)";
-    var input = panel.querySelector(".ai-input");
-    input.placeholder =
-      mode === "image"
-        ? "예: 어두운 배경에 어울리는 미니멀한 데이터 시각화 아이콘, 오렌지 포인트 컬러"
-        : "예: 이 슬라이드를 더 임팩트있는 오프닝 훅으로 다시 써줘 / 카드 3개로 정리해줘";
-    panel.querySelector(".ai-status").textContent = "";
     updateAiContextLine();
-    input.focus();
+    panel.querySelector(".ai-input").focus();
   }
 
   function closeAiPanel() {
     var panel = document.getElementById(AI_PANEL_ID);
     if (panel) panel.style.display = "none";
-    aiMode = null;
+  }
+
+  // 대화 로그에 말풍선 하나를 추가한다. role은 "user" 또는 "assistant"(에러면
+  // "assistant error")이고, imgSrc를 주면 그 이미지도 말풍선 안에 함께 보여준다.
+  // 사용자가 입력한 프롬프트를 그대로 담을 수 있어서 textContent로만 채워
+  // 마크업 삽입(HTML 인젝션) 위험 없이 안전하게 렌더링한다.
+  function appendChatMsg(panel, role, text, imgSrc) {
+    var log = panel.querySelector(".ai-chat-log");
+    if (!log) return null;
+    var msg = document.createElement("div");
+    msg.className = "ai-msg " + role;
+    if (text) {
+      var p = document.createElement("div");
+      p.textContent = text;
+      msg.appendChild(p);
+    }
+    if (imgSrc) {
+      var img = document.createElement("img");
+      img.src = imgSrc;
+      msg.appendChild(img);
+    }
+    log.appendChild(msg);
+    log.scrollTop = log.scrollHeight;
+    return msg;
   }
 
   // Claude가 응답 맨 앞에 <!-- root-class: hook --> 같은 주석을 남기면
@@ -311,66 +354,237 @@
     return html.slice(m[0].length);
   }
 
+  // 서버가 붙여줄 수 있는 ```html 코드펜스만 제거한다 (실제 정리는
+  // 서버에서 하지 않고, 스트리밍이 끝난 뒤 여기서 한 번만 처리한다).
+  function cleanAiHtmlClient(raw) {
+    var s = String(raw || "").trim();
+    s = s.replace(/^```(?:html)?\s*/i, "").replace(/```\s*$/i, "");
+    return s.trim();
+  }
+
+  // /api/ai/text, /api/ai/app 둘 다 text/plain 스트림으로 응답한다.
+  // 델타가 도착할 때마다 onChunk(누적된 전체 텍스트)를 호출해서 AI 패널에
+  // "타이핑되듯" 생성 과정을 그대로 보여줄 수 있게 하고, 스트림이 끝나면
+  // 최종 텍스트로 resolve한다. 서버가 스트림을 시작하기 전에 실패하면
+  // (예: API 키 없음) application/json 에러 응답이 오므로 그 경우엔 reject한다.
+  function streamAiText(url, body, onChunk) {
+    return fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then(function (res) {
+      var contentType = res.headers.get("content-type") || "";
+      if (!res.ok || contentType.indexOf("application/json") === 0) {
+        return res.json().then(function (data) {
+          throw new Error((data && data.error) || "HTTP " + res.status);
+        });
+      }
+      if (!res.body || !res.body.getReader) {
+        return res.text().then(function (full) {
+          onChunk(full);
+          return full;
+        });
+      }
+      var reader = res.body.getReader();
+      var decoder = new TextDecoder();
+      var full = "";
+      function pump() {
+        return reader.read().then(function (result) {
+          if (result.done) return full;
+          full += decoder.decode(result.value, { stream: true });
+          onChunk(full);
+          return pump();
+        });
+      }
+      return pump();
+    });
+  }
+
+  // 서버가 이미지 생성 이벤트를 한 줄에 하나씩 완결된 JSON으로 흘려보내는
+  // NDJSON 스트림을 읽는다(줄바꿈으로 이벤트 구분). 청크가 줄 중간에서 끊겨도
+  // 되도록 마지막 미완성 줄은 버퍼에 남겨뒀다가 다음 청크와 합쳐서 파싱한다.
+  function streamNdjson(url, body, onEvent) {
+    return fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then(function (res) {
+      var contentType = res.headers.get("content-type") || "";
+      if (!res.ok || contentType.indexOf("application/json") === 0) {
+        return res.json().then(function (data) {
+          throw new Error((data && data.error) || "HTTP " + res.status);
+        });
+      }
+      var reader = res.body.getReader();
+      var decoder = new TextDecoder();
+      var buffer = "";
+      function handleLine(line) {
+        if (!line.trim()) return;
+        try {
+          onEvent(JSON.parse(line));
+        } catch (e) {
+          // 불완전한 줄은 조용히 무시
+        }
+      }
+      function pump() {
+        return reader.read().then(function (result) {
+          if (result.done) {
+            handleLine(buffer);
+            return;
+          }
+          buffer += decoder.decode(result.value, { stream: true });
+          var lines = buffer.split("\n");
+          buffer = lines.pop();
+          lines.forEach(handleLine);
+          return pump();
+        });
+      }
+      return pump();
+    });
+  }
+
+  // 버튼 하나로 들어온 자연어 요청을 실제로 처리한다. action은 /api/ai/route가
+  // 판단해서 넘겨준 "text" | "image" | "app" 중 하나. 세 경우 모두 기존에 쓰던
+  // 스트리밍 파이프라인을 그대로 재사용하고, 끝나면 대화 로그에 결과를 남긴다.
+  // detail은 /api/ai/route가 미리 구체화해준 설명으로, "image" 단계에서는
+  // 사용자의 (보통 모호한) 문장 대신 이 detail을 실제 이미지 프롬프트로 쓴다.
+  function runAiAction(panel, action, prompt, detail) {
+    var status = panel.querySelector(".ai-status");
+    var streamEl = panel.querySelector(".ai-stream");
+    var previewWrap = panel.querySelector(".ai-image-preview-wrap");
+    var previewImg = panel.querySelector(".ai-image-preview");
+
+    if (action === "image") {
+      var imagePrompt = detail && detail.trim() ? detail.trim() : prompt;
+      // gpt-image 계열은 실제로 완성 전 흐릿한 중간 결과 이미지를 몇 장 먼저
+      // 보내준다(partial_images). 그걸 그대로 미리보기에 반영해서, 점점 선명한
+      // 이미지로 "스캔되어 나타나는" 효과를 진짜 생성 과정으로 보여준다.
+      status.textContent = "이미지 생성 중…";
+      previewImg.removeAttribute("src");
+      previewWrap.style.display = "block";
+      return streamNdjson("/api/ai/image", { prompt: imagePrompt, deckContext: deckContext }, function (evt) {
+        if (!evt || !evt.b64) return;
+        previewImg.src = "data:image/png;base64," + evt.b64;
+        status.textContent =
+          evt.phase === "done" ? "마무리 중…" : "이미지 생성 중… (미리보기 " + ((evt.index || 0) + 1) + ")";
+      })
+        .then(function () {
+          previewWrap.style.display = "none";
+          var finalSrc = previewImg.getAttribute("src");
+          if (!finalSrc) {
+            status.textContent = "실패: 이미지를 받지 못했습니다";
+            appendChatMsg(panel, "assistant error", "이미지를 받지 못했습니다.", null);
+            return;
+          }
+          addFreeImage(finalSrc);
+          status.textContent = "완료 · 이미지가 삽입되었습니다";
+          var note = imagePrompt !== prompt ? "이미지를 만들어 슬라이드에 넣었습니다. (" + imagePrompt + ")" : "이미지를 만들어 슬라이드에 넣었습니다.";
+          appendChatMsg(panel, "assistant", note, finalSrc);
+        })
+        .catch(function (err) {
+          previewWrap.style.display = "none";
+          throw err;
+        });
+    }
+
+    // "text"(슬라이드 작성/수정)와 "app"(인터랙티브 데모/게임)은 둘 다 Claude가
+    // 생성하는 과정을 실시간 스트리밍으로 보여준다. 완성되기 전까지는 아직
+    // 유효한 HTML이 아닐 수 있어서 실제 슬라이드에는 적용하지 않고, 패널 안의
+    // 코드 미리보기 창에만 그대로 흘려보낸 뒤 끝났을 때 한 번에 적용한다.
+    var isApp = action === "app";
+    status.textContent = isApp ? "인터랙티브 데모를 만들고 있어요…" : "AI가 작성 중…";
+    streamEl.style.display = "block";
+    streamEl.textContent = "";
+
+    var endpoint = isApp ? "/api/ai/app" : "/api/ai/text";
+    var requestBody = isApp
+      ? { prompt: prompt, deckContext: deckContext }
+      : { prompt: prompt, html: getCleanRootHtml(), deckContext: deckContext };
+
+    return streamAiText(endpoint, requestBody, function (full) {
+      streamEl.textContent = full;
+      streamEl.scrollTop = streamEl.scrollHeight;
+    })
+      .then(function (full) {
+        streamEl.style.display = "none";
+        var cleaned = cleanAiHtmlClient(full);
+        if (!cleaned) {
+          status.textContent = "실패: AI가 빈 응답을 반환했습니다";
+          appendChatMsg(panel, "assistant error", "AI가 빈 응답을 반환했습니다.", null);
+          return;
+        }
+        if (isApp) {
+          addFreeApp(cleaned);
+          status.textContent = "완료 · 데모가 슬라이드에 삽입되었습니다 (발표 모드에서 바로 조작할 수 있어요)";
+          appendChatMsg(panel, "assistant", "인터랙티브 데모를 만들어 슬라이드에 넣었습니다.", null);
+        } else {
+          restore(applyRootClassDirective(cleaned));
+          status.textContent = "완료 · 결과가 마음에 들지 않으면 Ctrl+Z로 되돌릴 수 있어요";
+          appendChatMsg(panel, "assistant", "슬라이드 내용을 수정했습니다.", null);
+        }
+        snapshot();
+      })
+      .catch(function (err) {
+        streamEl.style.display = "none";
+        throw err;
+      });
+  }
+
+  // steps를 순서대로(앞 단계가 끝나야 다음 단계 시작) 실행한다. "정리해주고
+  // 이미지로도 보충해줘"처럼 한 요청에 여러 작업이 섞여 있을 때 쓰인다.
+  function runAiSteps(panel, steps, prompt) {
+    var status = panel.querySelector(".ai-status");
+    return steps.reduce(function (chain, step, idx) {
+      return chain.then(function () {
+        if (steps.length > 1) {
+          status.textContent = "(" + (idx + 1) + "/" + steps.length + ") 처리 중…";
+        }
+        return runAiAction(panel, step.action, prompt, step.detail);
+      });
+    }, Promise.resolve());
+  }
+
   function runAi() {
     var panel = document.getElementById(AI_PANEL_ID);
-    if (!panel || !aiMode) return;
+    if (!panel) return;
     var input = panel.querySelector(".ai-input");
     var status = panel.querySelector(".ai-status");
     var runBtn = panel.querySelector('[data-cmd="ai-run"]');
+    if (runBtn.disabled) return;
     var prompt = input.value.trim();
     if (!prompt) {
       status.textContent = "프롬프트를 입력해주세요";
       return;
     }
     runBtn.disabled = true;
-    status.textContent = aiMode === "image" ? "이미지 생성 중… (최대 30초 정도 걸릴 수 있어요)" : "AI가 작성 중…";
+    input.value = "";
+    appendChatMsg(panel, "user", prompt, null);
+    status.textContent = "무엇을 만들지 판단하고 있어요…";
 
-    if (aiMode === "image") {
-      fetch("/api/ai/image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: prompt, deckContext: deckContext }),
+    // 텍스트/이미지/앱 버튼을 따로 두지 않고, 이 짧은 분류 호출로 Claude가
+    // 요청을 몇 개의 단계로 쪼갤지 먼저 판단하게 한 다음(예: 텍스트 정리 +
+    // 보충 이미지) 각 단계를 해당 파이프라인으로 순서대로 이어간다. 분류
+    // 자체가 실패해도(네트워크 문제 등) 가장 무난한 "text" 한 단계로 시도한다.
+    fetch("/api/ai/route", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: prompt, html: getCleanRootHtml(), deckContext: deckContext }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        return (data && data.ok && Array.isArray(data.steps) && data.steps.length) ? data.steps : [{ action: "text", detail: "" }];
       })
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-          runBtn.disabled = false;
-          if (!data.ok) {
-            status.textContent = "실패: " + data.error;
-            return;
-          }
-          addFreeImage(data.dataUrl);
-          status.textContent = "완료 · 이미지가 삽입되었습니다";
-          input.value = "";
-        })
-        .catch(function () {
-          runBtn.disabled = false;
-          status.textContent = "실패 (서버가 켜져 있는지 확인하세요)";
-        });
-    } else {
-      var currentHtml = getCleanRootHtml();
-      fetch("/api/ai/text", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: prompt, html: currentHtml, deckContext: deckContext }),
+      .catch(function () { return [{ action: "text", detail: "" }]; })
+      .then(function (steps) { return runAiSteps(panel, steps, prompt); })
+      .then(function () {
+        runBtn.disabled = false;
       })
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-          runBtn.disabled = false;
-          if (!data.ok) {
-            status.textContent = "실패: " + data.error;
-            return;
-          }
-          var html = applyRootClassDirective(data.html);
-          restore(html);
-          snapshot();
-          status.textContent = "완료 · 결과가 마음에 들지 않으면 Ctrl+Z로 되돌릴 수 있어요";
-          input.value = "";
-        })
-        .catch(function () {
-          runBtn.disabled = false;
-          status.textContent = "실패 (서버가 켜져 있는지 확인하세요)";
-        });
-    }
+      .catch(function (err) {
+        runBtn.disabled = false;
+        var msg = (err && err.message) || "서버가 켜져 있는지 확인하세요";
+        status.textContent = "실패: " + msg;
+        appendChatMsg(panel, "assistant error", "실패: " + msg, null);
+      });
   }
 
   function applyColor(hex) {
@@ -590,6 +804,32 @@
     video.controls = true;
     video.setAttribute("playsinline", "");
     wrap.appendChild(video);
+    root.appendChild(wrap);
+    enhanceFreeEls();
+    wrap.focus();
+    snapshot();
+  }
+
+  // AI가 만들어준 완전히 독립적인 HTML 문서(팩맨 같은 미니게임, 카운터, 인터랙티브
+  // 데모 등)를 sandbox iframe으로 슬라이드에 심는다. srcdoc을 쓰면 별도 파일 없이
+  // 이 슬라이드 문서 자체 안에 통째로 저장/배포(GitHub Pages 포함)되고, sandbox
+  // 속성으로 top-level 네비게이션이나 부모 문서 접근 같은 위험한 동작은 막아둔다.
+  function addFreeApp(html) {
+    var root = getRoot();
+    if (!root) return;
+    var wrap = document.createElement("div");
+    wrap.className = "free-el free-el--app";
+    wrap.style.position = "absolute";
+    wrap.style.left = "20%";
+    wrap.style.top = "14%";
+    wrap.style.width = "60%";
+    wrap.style.height = "72%";
+    wrap.style.zIndex = String(nextZIndex());
+    var iframe = document.createElement("iframe");
+    iframe.setAttribute("sandbox", "allow-scripts allow-forms allow-pointer-lock allow-popups");
+    iframe.setAttribute("frameborder", "0");
+    iframe.srcdoc = html;
+    wrap.appendChild(iframe);
     root.appendChild(wrap);
     enhanceFreeEls();
     wrap.focus();
@@ -851,7 +1091,9 @@
       // 편집 중에는 모든 마우스 이벤트가 무조건 우리 쪽(this 문서)에서만
       // 처리되도록 확실히 막는다.
       if (
-        (fi.classList.contains("free-el--video") || fi.classList.contains("free-el--embed")) &&
+        (fi.classList.contains("free-el--video") ||
+          fi.classList.contains("free-el--embed") ||
+          fi.classList.contains("free-el--app")) &&
         !fi.querySelector(".free-el-shield")
       ) {
         var shield = document.createElement("div");
@@ -932,6 +1174,24 @@
     }
   });
 
+  // 클릭 지점에 겹쳐 있는 .free-el들을 z-index가 높은(맨 앞) 순서로 반환한다.
+  // 이미지/도형이 다른 텍스트 상자 위에 겹쳐 놓이면, 보통 클릭은 항상 맨 위
+  // 요소만 잡기 때문에 뒤에 깔린 요소는 영원히 드래그할 방법이 없어진다.
+  // Alt+클릭으로 이 목록을 한 칸씩 순환하며 뒤에 있는 요소를 선택할 수 있게 한다.
+  function freeElsAtPoint(x, y) {
+    var root = getRoot();
+    if (!root) return [];
+    var hits = [];
+    root.querySelectorAll(".free-el").forEach(function (fi) {
+      var r = fi.getBoundingClientRect();
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) hits.push(fi);
+    });
+    hits.sort(function (a, b) {
+      return parseInt(b.style.zIndex || "0", 10) - parseInt(a.style.zIndex || "0", 10);
+    });
+    return hits;
+  }
+
   document.addEventListener("mousedown", function (e) {
     if (!isEditing()) return;
     var delBtn = e.target.closest(".free-el-del");
@@ -944,6 +1204,18 @@
     }
     var handle = e.target.closest(".free-el-handle");
     var el = e.target.closest(".free-el");
+
+    // Alt+클릭: 겹쳐 있는 요소들 중 맨 위 것만 계속 선택되는 문제를 피하려고,
+    // 클릭 지점에 겹친 요소들을 앞→뒤 순서로 한 칸씩 순환 선택한다
+    // (파워포인트의 Alt+클릭으로 겹친 도형 선택하기와 같은 동작).
+    if (e.altKey && !handle) {
+      var stack = freeElsAtPoint(e.clientX, e.clientY);
+      if (stack.length) {
+        var curIdx = el ? stack.indexOf(el) : -1;
+        el = stack[(curIdx + 1) % stack.length];
+      }
+    }
+
     if (!el) return;
     if (!handle && el.classList.contains("free-el--text") && el.getAttribute("contenteditable") === "true") {
       return; // 텍스트 편집 중에는 커서 배치를 그대로 둔다

@@ -13,10 +13,29 @@
   var ROOT_SELECTOR = ".slide";
   var UI_ID = "__cursor_editor_ui";
   var AI_PANEL_ID = "__cursor_ai_panel";
+  var AI_BACKDROP_ID = "__cursor_ai_backdrop";
+  var STYLE_PANEL_ID = "__cursor_style_panel";
+  var PICK_INDICATOR_ID = "__cursor_pick_indicator";
   // AI 챗봇은 버튼을 여러 개로 나누지 않고, 자연어 요청 하나를 받아서
   // 서버(/api/ai/route)가 text/image/app 중 뭘 할지 알아서 판단하게 한다.
   var deckContext = null; // index.html이 postMessage로 보내주는 전체 발표 맥락 정보
   var dragState = null;
+  // 파워포인트의 "도형 서식" 패널처럼, 지금 선택된 요소를 별도로 기억해둔다.
+  // document.activeElement만 보면 서식 패널의 색상/슬라이더를 조작하는 순간
+  // 포커스가 그 컨트롤로 넘어가서 "선택이 풀린 것"처럼 보이는 문제가 생긴다.
+  var selectedFreeEl = null;
+  // AI가 만든 인포그래픽(도넛 차트, 버블 클러스터 등)처럼 자유배치 요소가 아닌
+  // "구조 콘텐츠"는 원래 클릭해도 아무 반응이 없었다. Alt+클릭으로 그런 요소도
+  // (드래그는 안 되지만) 서식 패널로 배경/테두리/모서리/그림자만큼은 만질 수 있게
+  // 별도로 추적한다. free-el 선택과는 서로 배타적이다.
+  var selectedStructEl = null;
+  // AI가 생성한 이미지를 인터랙티브 데모(app) 안에서 캐릭터/배경 스프라이트 같은
+  // 리소스로 재사용할 수 있게, 최근 생성 이미지를 데이터URL 그대로 몇 장 기억해둔다.
+  // (base64 원본을 서버/Claude에 매번 왕복시키면 토큰을 어마어마하게 잡아먹으므로,
+  // Claude에게는 개수만 알려주고 {{IMAGE_n}} 플레이스홀더로 받아서 클라이언트에서
+  // 실제 데이터로 치환한다.)
+  var aiGeneratedImages = [];
+  var AI_IMAGE_MEMORY = 4;
   var history = [];
   var historyIndex = -1;
   var isRestoring = false;
@@ -41,8 +60,130 @@
   }
 
   function getSelectedFreeEl() {
+    if (selectedFreeEl && document.contains(selectedFreeEl)) return selectedFreeEl;
     var active = document.activeElement;
     return active && active.classList && active.classList.contains("free-el") ? active : null;
+  }
+
+  function selectFreeEl(el) {
+    selectedFreeEl = el || null;
+    if (el) selectedStructEl = null;
+    updateStylePanel();
+    updatePickIndicator();
+  }
+
+  function selectStructEl(el) {
+    selectedStructEl = el || null;
+    if (el) selectedFreeEl = null;
+    updateStylePanel();
+    updatePickIndicator();
+  }
+
+  // 서식 패널이 지금 실제로 조작해야 할 대상 하나를 돌려준다(자유배치 요소
+  // 또는 Alt+클릭으로 고른 구조 콘텐츠 중 살아있는 쪽).
+  function getStyleTarget() {
+    if (selectedFreeEl && document.contains(selectedFreeEl)) return selectedFreeEl;
+    if (selectedStructEl && document.contains(selectedStructEl)) return selectedStructEl;
+    return null;
+  }
+
+  function getPickIndicator() {
+    return document.getElementById(PICK_INDICATOR_ID);
+  }
+
+  // "지금 정확히 뭘 잡았는지" 눈으로 바로 확인할 수 있도록, 선택된 요소의
+  // 실제 화면 좌표에 맞춰 점선 박스를 그려 겹쳐 보여준다. 드래그 중이거나
+  // 창 크기가 바뀔 때도 계속 따라가도록 여러 곳에서 이 함수를 호출한다.
+  function updatePickIndicator() {
+    var indicator = getPickIndicator();
+    if (!indicator) return;
+    var el = getStyleTarget();
+    if (!isEditing() || !el) {
+      indicator.style.display = "none";
+      return;
+    }
+    var r = el.getBoundingClientRect();
+    indicator.style.display = "block";
+    indicator.style.left = r.left - 3 + "px";
+    indicator.style.top = r.top - 3 + "px";
+    indicator.style.width = Math.max(0, r.width + 6) + "px";
+    indicator.style.height = Math.max(0, r.height + 6) + "px";
+    var tag = indicator.querySelector(".pick-tag");
+    if (tag) tag.textContent = describeStyleTarget(el);
+  }
+
+  function describeStyleTarget(el) {
+    if (isSvgShape(el)) return "SVG · " + el.tagName.toLowerCase();
+    var label = null;
+    Object.keys(FREE_EL_TYPE_LABEL).forEach(function (cls) {
+      if (el.classList.contains(cls)) label = FREE_EL_TYPE_LABEL[cls];
+    });
+    if (label) return label;
+    return el.classList.contains("free-el") ? "요소" : "구조 요소";
+  }
+
+  var SVG_SHAPE_TAGS = { circle: 1, path: 1, rect: 1, ellipse: 1, polygon: 1, polyline: 1, line: 1, text: 1 };
+
+  function isSvgShape(el) {
+    return !!(el && el.namespaceURI === "http://www.w3.org/2000/svg" && SVG_SHAPE_TAGS[el.tagName.toLowerCase()]);
+  }
+
+  // AI가 인포그래픽을 만들 때 클래스 없이 인라인 style만 잔뜩 써서 라벨
+  // 박스/도넛 조각을 그리는 경우가 많다("class로 찾기"만으로는 라벨 박스+도넛
+  // 전체를 감싼 바깥 컨테이너 하나로 다 잡혀버린다). 그래서 target에서부터
+  // 위로 올라가며, 가장 먼저 만나는 "그 자체로 의미 있는" 요소를 고른다:
+  // 1) background/border/box-shadow 인라인 스타일이 있는 요소("카드"처럼 보이는 것)
+  // 2) SVG 도형/텍스트 자체(도넛 한 조각, 연결선 하나 등 — 그 자체가 이미 최소 단위)
+  // 3) class가 붙은 요소
+  // 이렇게 하면 라벨 박스 안의 숫자 텍스트를 클릭해도 그 숫자만 잡히는 게
+  // 아니라 감싸고 있는 라벨 박스 전체가 잡히고, 도넛 조각을 클릭하면 그
+  // 조각 하나만(전체 차트가 아니라) 잡힌다.
+  function looksLikeVisualBox(node) {
+    var style = node.getAttribute && node.getAttribute("style");
+    return !!(style && /background|border|box-shadow/i.test(style));
+  }
+
+  function nearestStyleableEl(target) {
+    var root = getRoot();
+    if (!root) return null;
+    var node = target;
+    while (node && node !== root && node.nodeType === 1) {
+      if (looksLikeVisualBox(node) || isSvgShape(node) || (node.classList && node.classList.length)) {
+        return node;
+      }
+      node = node.parentElement;
+    }
+    return null;
+  }
+
+  // 구조 콘텐츠/SVG 도형은 left/top(%)이 아니라 transform:translate(vw, vh)로
+  // 옮긴다 — vw/vh는 이 슬라이드 문서 자체의 뷰포트(=iframe 크기) 기준이라,
+  // 썸네일/본편집/발표 전체화면처럼 실제 렌더링 크기가 달라져도 항상 같은
+  // 비율로 위치가 유지된다(px를 쓰면 컨텍스트마다 위치가 어긋난다).
+  // 이미 다른 transform(예: 도넛의 rotate(-90deg))이 있으면 그대로 보존하고,
+  // 새 translate는 항상 맨 앞에 둬서 화면 기준 방향으로 이동하게 한다.
+  function parseTranslateVw(transformStr) {
+    var m = /^translate\(\s*(-?[\d.]+)vw\s*,\s*(-?[\d.]+)vh\s*\)\s*/.exec(transformStr || "");
+    if (!m) return { tx: 0, ty: 0, rest: transformStr || "" };
+    return { tx: parseFloat(m[1]), ty: parseFloat(m[2]), rest: transformStr.slice(m[0].length).trim() };
+  }
+
+  function startStructDrag(el, e) {
+    var root = getRoot();
+    if (!root) return;
+    var rect = root.getBoundingClientRect();
+    var parsed = parseTranslateVw(el.style.transform);
+    dragState = {
+      mode: "transform",
+      el: el,
+      startX: e.clientX,
+      startY: e.clientY,
+      baseTx: parsed.tx,
+      baseTy: parsed.ty,
+      restTransform: parsed.rest,
+      rectW: rect.width,
+      rectH: rect.height,
+    };
   }
 
   /* ------------------------------------------------------------------ */
@@ -75,11 +216,28 @@
       "border:1px solid #3c3e46;border-radius:4px;padding:5px 6px;cursor:pointer;max-width:108px;}" +
       "#" + UI_ID + " button.ai-btn{border-color:#5a4a8f;color:#c9b8ff;}" +
       "#" + UI_ID + " button.ai-btn:hover{border-color:#a78bfa;color:#a78bfa;}" +
-      "#" + AI_PANEL_ID + "{position:fixed;top:41px;left:0;right:0;z-index:999998;display:none;" +
-      "flex-direction:column;gap:6px;background:#1b1c20;border-bottom:1px solid #34363d;" +
-      "padding:10px 12px;font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;}" +
-      "#" + AI_PANEL_ID + " .ai-title{font-size:12px;font-weight:700;color:#c9b8ff;}" +
-      "#" + AI_PANEL_ID + " .ai-context{font-size:11px;color:#8a8d95;}" +
+      // 예전엔 툴바 바로 아래 전체 폭 바 형태라 챗봇을 열면 슬라이드가 위에서부터
+      // 가려/밀리는 느낌이 컸다. 지금은 화면 중앙에 뜨는 독립된 모달 창으로 바꿔서
+      // 슬라이드 레이아웃과 완전히 분리하고, 뒤에 반투명 백드롭을 깔아 클릭하거나
+      // Esc를 누르면 닫히게 한다(진짜 모달 다이얼로그처럼 동작).
+      "#" + AI_BACKDROP_ID + "{position:fixed;inset:0;z-index:999998;display:none;" +
+      "background:rgba(6,7,10,.6);}" +
+      "#" + AI_PANEL_ID + "{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);" +
+      "z-index:999998;display:none;flex-direction:column;width:440px;max-width:92vw;" +
+      "max-height:82vh;background:#1b1c20;border:1px solid #34363d;border-radius:14px;" +
+      "box-shadow:0 24px 70px rgba(0,0,0,.55);overflow:hidden;" +
+      "font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;}" +
+      "#" + AI_PANEL_ID + " .ai-panel-header{display:flex;align-items:center;gap:8px;" +
+      "padding:12px 14px;border-bottom:1px solid #2b2d33;flex:none;}" +
+      "#" + AI_PANEL_ID + " .ai-title{font-size:12px;font-weight:700;color:#c9b8ff;flex:1;}" +
+      "#" + AI_PANEL_ID + " .ai-close{font-family:inherit;font-size:16px;line-height:1;color:#9a9da5;" +
+      "background:none;border:none;cursor:pointer;padding:2px 4px;border-radius:4px;}" +
+      "#" + AI_PANEL_ID + " .ai-close:hover{color:#ff6b4a;background:#2a2c33;}" +
+      "#" + AI_PANEL_ID + " .ai-context{font-size:11px;color:#8a8d95;padding:8px 14px 0;flex:none;}" +
+      "#" + AI_PANEL_ID + " .ai-body{display:flex;flex-direction:column;gap:8px;padding:10px 14px;" +
+      "overflow-y:auto;flex:1;min-height:0;}" +
+      "#" + AI_PANEL_ID + " .ai-footer{flex:none;padding:10px 14px 14px;border-top:1px solid #2b2d33;" +
+      "display:flex;flex-direction:column;gap:8px;}" +
       "#" + AI_PANEL_ID + " textarea{width:100%;min-height:52px;resize:vertical;font-family:inherit;" +
       "font-size:12.5px;color:#eceded;background:#111217;border:1px solid #3c3e46;border-radius:6px;" +
       "padding:8px 10px;box-sizing:border-box;}" +
@@ -92,8 +250,7 @@
       "#" + AI_PANEL_ID + " .ai-status{font-size:11.5px;color:#8a8d95;}" +
       // 챗봇처럼 지난 요청/결과를 말풍선으로 쌓아 보여주는 대화 로그.
       // 내용이 없으면 flex 컨테이너가 그냥 0높이로 접혀서 평소엔 자리를 차지하지 않는다.
-      "#" + AI_PANEL_ID + " .ai-chat-log{display:flex;flex-direction:column;gap:6px;" +
-      "max-height:160px;overflow-y:auto;}" +
+      "#" + AI_PANEL_ID + " .ai-chat-log{display:flex;flex-direction:column;gap:6px;}" +
       "#" + AI_PANEL_ID + " .ai-msg{max-width:85%;padding:6px 10px;border-radius:10px;font-size:12px;" +
       "line-height:1.45;word-break:break-word;}" +
       "#" + AI_PANEL_ID + " .ai-msg.user{align-self:flex-end;background:#3a2f57;color:#eceded;" +
@@ -141,7 +298,37 @@
       "#" + AI_PANEL_ID + " .ai-scanline{position:absolute;left:0;right:0;top:0;height:3px;" +
       "background:linear-gradient(90deg,transparent,#ff6b4a,transparent);" +
       "box-shadow:0 0 10px 2px #ff6b4a99;animation:__cursor_ai_scan 1.6s linear infinite;}" +
-      "@keyframes __cursor_ai_scan{0%{top:0;}100%{top:100%;}}";
+      "@keyframes __cursor_ai_scan{0%{top:0;}100%{top:100%;}}" +
+      // 파워포인트의 "도형 서식" 패널처럼, 선택된 요소(도형/텍스트 상자/이미지 등)의
+      // 배경·테두리·모서리·투명도·그림자를 직접 슬라이더/색상 선택으로 만질 수 있게
+      // 화면 오른쪽에 떠 있는 패널. 선택된 요소가 없으면 자리를 차지하지 않는다.
+      "#" + STYLE_PANEL_ID + "{position:fixed;top:41px;right:0;z-index:999997;display:none;" +
+      "width:196px;max-height:calc(100vh - 51px);overflow-y:auto;background:#1b1c20;" +
+      "border-left:1px solid #2b2d33;border-bottom:1px solid #2b2d33;border-bottom-left-radius:8px;" +
+      "padding:12px;box-sizing:border-box;font-family:'Malgun Gothic',sans-serif;}" +
+      "#" + STYLE_PANEL_ID + " .sp-title{font-size:12px;font-weight:700;color:#eceded;margin-bottom:10px;}" +
+      "#" + STYLE_PANEL_ID + " .sp-row{margin-bottom:12px;}" +
+      "#" + STYLE_PANEL_ID + " .sp-label{display:flex;align-items:center;justify-content:space-between;" +
+      "font-size:11px;color:#9a9da5;margin-bottom:5px;}" +
+      "#" + STYLE_PANEL_ID + " .sp-row input[type=range]{width:100%;}" +
+      "#" + STYLE_PANEL_ID + " .sp-color-row{display:flex;align-items:center;gap:6px;}" +
+      "#" + STYLE_PANEL_ID + " .sp-color-row input[type=color]{width:28px;height:24px;padding:0;" +
+      "border:1px solid #3c3e46;border-radius:4px;background:#0c0d10;cursor:pointer;}" +
+      "#" + STYLE_PANEL_ID + " .sp-clear{font-size:10.5px;color:#9a9da5;background:#2a2c33;" +
+      "border:1px solid #3c3e46;border-radius:4px;padding:4px 7px;cursor:pointer;}" +
+      "#" + STYLE_PANEL_ID + " .sp-border-row{display:flex;align-items:center;gap:6px;}" +
+      "#" + STYLE_PANEL_ID + " .sp-border-row input[type=range]{flex:1;}" +
+      "#" + STYLE_PANEL_ID + " .sp-toggle{display:flex;align-items:center;gap:6px;font-size:11px;" +
+      "color:#c7cad1;}" +
+      // 지금 뭘 선택했는지("피킹 영역") 한눈에 보이도록, 선택된 요소의 실제
+      // 화면 좌표(getBoundingClientRect)에 맞춰 오렌지 점선 박스를 겹쳐 그린다.
+      // free-el의 기존 얇은 outline보다 훨씬 눈에 잘 띄고, class가 없는 구조
+      // 콘텐츠/SVG 도형에도 똑같이 적용된다.
+      "#" + PICK_INDICATOR_ID + "{position:fixed;z-index:999996;display:none;pointer-events:none;" +
+      "border:2px dashed #ff6b4a;border-radius:4px;box-shadow:0 0 0 3px rgba(255,107,74,.18),0 0 14px rgba(255,107,74,.35);}" +
+      "#" + PICK_INDICATOR_ID + " .pick-tag{position:absolute;left:-2px;top:-20px;background:#ff6b4a;" +
+      "color:#fff;font-size:10px;font-weight:700;line-height:1;padding:3px 6px;border-radius:3px 3px 0 0;" +
+      "white-space:nowrap;font-family:'Malgun Gothic',sans-serif;}";
     document.head.appendChild(style);
 
     var wrap = document.createElement("div");
@@ -197,19 +384,59 @@
       '<button data-cmd="save" style="font-weight:700;">저장</button>' +
       '<span class="cestatus"></span>' +
       "</div>" +
+      '<div id="' + AI_BACKDROP_ID + '"></div>' +
       '<div id="' + AI_PANEL_ID + '">' +
-      '<div class="ai-title">AI 챗봇 · 텍스트 수정 · 이미지 생성 · 인터랙티브 데모를 한 곳에서</div>' +
+      '<div class="ai-panel-header">' +
+      '<span class="ai-title">AI 챗봇 · 텍스트 · 이미지 · 인터랙티브 데모</span>' +
+      '<button type="button" class="ai-close" data-cmd="ai-cancel" title="닫기 (Esc)">✕</button>' +
+      "</div>" +
       '<div class="ai-context"></div>' +
+      '<div class="ai-body">' +
       '<div class="ai-chat-log"></div>' +
       '<pre class="ai-stream"></pre>' +
       '<div class="ai-image-preview-wrap"><img class="ai-image-preview" alt="생성 중인 이미지 미리보기" /><div class="ai-scanline"></div></div>' +
+      "</div>" +
+      '<div class="ai-footer">' +
       '<textarea class="ai-input" rows="2" placeholder="예: 이 슬라이드 제목을 더 강하게 바꿔줘 / 오렌지톤 아이콘 그려줘 / 방향키로 조작하는 팩맨 게임 만들어줘"></textarea>' +
       '<div class="ai-actions">' +
       '<button data-cmd="ai-run" title="Ctrl+Enter">전송</button>' +
-      '<button data-cmd="ai-cancel">닫기</button>' +
       '<span class="ai-status"></span>' +
       "</div>" +
-      "</div>";
+      "</div>" +
+      "</div>" +
+      '<div id="' + STYLE_PANEL_ID + '" title="Alt+클릭: 겹친 요소나 그림/차트 같은 장식 요소도 부분별로 선택해서 서식을 바꿀 수 있어요. Alt+드래그로 이동도 가능해요.">' +
+      '<div class="sp-title">서식 · <span class="sp-type"></span></div>' +
+      '<div class="sp-row">' +
+      '<div class="sp-label"><span data-label-for="bg">배경색</span></div>' +
+      '<div class="sp-color-row">' +
+      '<input type="color" data-style="bg" value="#ff6b4a" />' +
+      '<button type="button" class="sp-clear" data-style-clear="bg">없음</button>' +
+      "</div>" +
+      "</div>" +
+      '<div class="sp-row" data-row-for="border">' +
+      '<div class="sp-label"><span data-label-for="border">테두리</span></div>' +
+      '<div class="sp-border-row">' +
+      '<input type="color" data-style="border-color" value="#ffffff" />' +
+      '<input type="range" min="0" max="60" step="1" data-style="border-width" />' +
+      "</div>" +
+      "</div>" +
+      '<div class="sp-row" data-row-for="radius">' +
+      '<div class="sp-label"><span>모서리 둥글기</span><span class="sp-val" data-val-for="radius">0</span></div>' +
+      '<input type="range" min="0" max="40" step="1" data-style="radius" />' +
+      "</div>" +
+      '<div class="sp-row">' +
+      '<div class="sp-label"><span>투명도</span><span class="sp-val" data-val-for="opacity">100%</span></div>' +
+      '<input type="range" min="10" max="100" step="5" data-style="opacity" />' +
+      "</div>" +
+      '<div class="sp-row">' +
+      '<label class="sp-toggle"><input type="checkbox" data-style="shadow" /> 그림자</label>' +
+      "</div>" +
+      '<div class="sp-row" data-shadow-blur-row>' +
+      '<div class="sp-label"><span>그림자 번짐</span><span class="sp-val" data-val-for="shadow-blur">24</span></div>' +
+      '<input type="range" min="4" max="60" step="2" data-style="shadow-blur" />' +
+      "</div>" +
+      "</div>" +
+      '<div id="' + PICK_INDICATOR_ID + '"><span class="pick-tag"></span></div>';
     document.body.appendChild(wrap);
     wireToolbar(wrap);
     return wrap;
@@ -220,18 +447,33 @@
       if (e.target.closest("button")) e.preventDefault();
     });
     wrap.addEventListener("input", function (e) {
+      if (e.target.hasAttribute("data-style")) {
+        applyStyleProp(e.target.getAttribute("data-style"));
+        return;
+      }
       if (e.target.matches('input[type=color]')) applyColor(e.target.value);
     });
     wrap.addEventListener("change", function (e) {
       if (e.target.matches('select[data-cmd="font-family"]')) applyFontFamily(e.target.value);
+      if (e.target.hasAttribute("data-style")) applyStyleProp(e.target.getAttribute("data-style"));
     });
     wrap.addEventListener("keydown", function (e) {
       if (e.target.matches(".ai-input") && (e.ctrlKey || e.metaKey) && e.key === "Enter") {
         e.preventDefault();
         runAi();
+        return;
+      }
+      if (e.key === "Escape") {
+        var panel = document.getElementById(AI_PANEL_ID);
+        if (panel && panel.style.display === "flex") closeAiPanel();
       }
     });
     wrap.addEventListener("click", function (e) {
+      // 모달 바깥의 반투명 배경을 클릭하면(진짜 모달 다이얼로그처럼) 닫는다.
+      if (e.target.id === AI_BACKDROP_ID) {
+        closeAiPanel();
+        return;
+      }
       var btn = e.target.closest("button");
       if (!btn) return;
       var cmd = btn.getAttribute("data-cmd");
@@ -254,11 +496,12 @@
       else if (cmd === "front") { var s1 = getSelectedFreeEl(); if (s1) bringToFront(s1); }
       else if (cmd === "back") { var s2 = getSelectedFreeEl(); if (s2) sendToBack(s2); }
       else if (cmd === "dup") duplicateSelected();
-      else if (cmd === "del-selected") { var s3 = getSelectedFreeEl(); if (s3) { s3.remove(); snapshot(); } }
+      else if (cmd === "del-selected") { var s3 = getSelectedFreeEl(); if (s3) { selectFreeEl(null); s3.remove(); snapshot(); } }
       else if (cmd === "undo") undo();
       else if (cmd === "redo") redo();
       else if (cmd === "save") save(wrap);
       else if (btn.hasAttribute("data-color")) applyColor(btn.getAttribute("data-color"));
+      else if (btn.hasAttribute("data-style-clear")) clearStyleProp(btn.getAttribute("data-style-clear"));
       else if (btn.hasAttribute("data-bg")) {
         var root = getRoot();
         if (root) { root.style.background = btn.getAttribute("data-bg"); snapshot(); }
@@ -278,6 +521,34 @@
     var clone = root.cloneNode(true);
     stripFreeElChrome(clone);
     return clone.innerHTML;
+  }
+
+  // AI(텍스트 작성/챗봇 라우팅)에게 "지금 슬라이드에 뭐가 있는지" 참고자료로
+  // 줄 때 쓰는 버전. getCleanRootHtml()을 그대로 보내면 두 가지 문제가 있다:
+  // 1) AI가 생성한 이미지/인터랙티브 데모(iframe srcdoc) 안의 base64 데이터까지
+  //    통째로 딸려가서 슬라이드 하나가 수십만~수백만 바이트까지 커진 경우
+  //    Claude의 입력 토큰 한도(20만)를 넘겨 "prompt is too long"으로 실패한다.
+  // 2) 사용자가 클립보드로 붙여넣거나 직접 추가한 자유배치 요소(.free-el —
+  //    이미지/도형/텍스트 상자/영상/임베드/데모)를 AI가 "텍스트 정리/꾸미기"
+  //    같은 요청으로 슬라이드 전체를 다시 쓸 때 같이 지워버리는 문제가 있다
+  //    (AI는 실제 이미지 데이터를 모르니 재현할 수 없어서 통째로 빠뜨린다).
+  // 그래서 free-el은 AI 컨텍스트에서 아예 통째로 제외한다 — 어차피 AI 응답을
+  // 적용할 때 원래 있던 free-el들을 그대로 다시 얹어서 절대 사라지지 않게
+  // 처리하므로(applyAiStructuralHtml), AI가 이 부분을 볼 필요 자체가 없다.
+  function getAiContextHtml() {
+    var root = getRoot();
+    if (!root) return "";
+    var clone = root.cloneNode(true);
+    stripFreeElChrome(clone);
+    var freeElCount = clone.querySelectorAll(":scope > .free-el").length;
+    clone.querySelectorAll(".free-el").forEach(function (el) { el.remove(); });
+    var html = clone.innerHTML;
+    if (freeElCount) {
+      html +=
+        "\n<!-- 참고: 이 슬라이드에는 사용자가 직접 배치한 이미지/도형/텍스트상자/영상 등 " +
+        freeElCount + "개가 더 있지만(위 내용에는 생략됨), 그대로 유지되니 신경 쓰지 않아도 됩니다. -->";
+    }
+    return html;
   }
 
   // AI 패널에 "지금 AI에게 어떤 맥락이 전달되는지"를 눈에 보이게 표시해서,
@@ -306,6 +577,8 @@
       return;
     }
     panel.style.display = "flex";
+    var backdrop = document.getElementById(AI_BACKDROP_ID);
+    if (backdrop) backdrop.style.display = "block";
     updateAiContextLine();
     panel.querySelector(".ai-input").focus();
   }
@@ -313,6 +586,8 @@
   function closeAiPanel() {
     var panel = document.getElementById(AI_PANEL_ID);
     if (panel) panel.style.display = "none";
+    var backdrop = document.getElementById(AI_BACKDROP_ID);
+    if (backdrop) backdrop.style.display = "none";
   }
 
   // 대화 로그에 말풍선 하나를 추가한다. role은 "user" 또는 "assistant"(에러면
@@ -443,6 +718,16 @@
     });
   }
 
+  // Claude가 app 생성 시 {{IMAGE_1}}, {{IMAGE_2}}... 형태로 남긴 플레이스홀더를
+  // 실제 생성 이미지의 data URL로 치환한다(오래된 순서대로 1번부터 매핑).
+  function applyImagePlaceholders(html) {
+    if (!aiGeneratedImages.length) return html;
+    return html.replace(/\{\{\s*IMAGE_(\d+)\s*\}\}/g, function (m, n) {
+      var idx = parseInt(n, 10) - 1;
+      return aiGeneratedImages[idx] || "";
+    });
+  }
+
   // 버튼 하나로 들어온 자연어 요청을 실제로 처리한다. action은 /api/ai/route가
   // 판단해서 넘겨준 "text" | "image" | "app" 중 하나. 세 경우 모두 기존에 쓰던
   // 스트리밍 파이프라인을 그대로 재사용하고, 끝나면 대화 로그에 결과를 남긴다.
@@ -477,6 +762,10 @@
             return;
           }
           addFreeImage(finalSrc);
+          // 방금 만든 이미지를 기억해뒀다가, 이어지는(또는 나중의) "app" 단계에서
+          // {{IMAGE_n}} 플레이스홀더로 그대로 재사용할 수 있게 한다.
+          aiGeneratedImages.push(finalSrc);
+          if (aiGeneratedImages.length > AI_IMAGE_MEMORY) aiGeneratedImages.shift();
           status.textContent = "완료 · 이미지가 삽입되었습니다";
           var note = imagePrompt !== prompt ? "이미지를 만들어 슬라이드에 넣었습니다. (" + imagePrompt + ")" : "이미지를 만들어 슬라이드에 넣었습니다.";
           appendChatMsg(panel, "assistant", note, finalSrc);
@@ -497,9 +786,13 @@
     streamEl.textContent = "";
 
     var endpoint = isApp ? "/api/ai/app" : "/api/ai/text";
+    // 앱 단계에는 "지금 몇 장의 생성 이미지를 재료로 쓸 수 있는지"만 알려준다.
+    // 실제 base64 데이터는 절대 프롬프트에 넣지 않고(토큰 낭비 + 실수로 잘못
+    // 베껴 쓸 위험), Claude가 {{IMAGE_1}} 같은 플레이스홀더만 쓰게 한 뒤
+    // 아래 완료 처리에서 클라이언트가 직접 실제 데이터로 치환한다.
     var requestBody = isApp
-      ? { prompt: prompt, deckContext: deckContext }
-      : { prompt: prompt, html: getCleanRootHtml(), deckContext: deckContext };
+      ? { prompt: prompt, deckContext: deckContext, imageCount: aiGeneratedImages.length }
+      : { prompt: prompt, html: getAiContextHtml(), deckContext: deckContext };
 
     return streamAiText(endpoint, requestBody, function (full) {
       streamEl.textContent = full;
@@ -514,13 +807,19 @@
           return;
         }
         if (isApp) {
-          addFreeApp(cleaned);
+          addFreeApp(applyImagePlaceholders(cleaned));
           status.textContent = "완료 · 데모가 슬라이드에 삽입되었습니다 (발표 모드에서 바로 조작할 수 있어요)";
           appendChatMsg(panel, "assistant", "인터랙티브 데모를 만들어 슬라이드에 넣었습니다.", null);
         } else {
-          restore(applyRootClassDirective(cleaned));
-          status.textContent = "완료 · 결과가 마음에 들지 않으면 Ctrl+Z로 되돌릴 수 있어요";
-          appendChatMsg(panel, "assistant", "슬라이드 내용을 수정했습니다.", null);
+          // 슬라이드 구조 콘텐츠를 통째로 갈아치우므로, 이전에 선택돼 있던 요소는
+          // 더 이상 DOM에 없을 수 있다 — 서식 패널이 죽은 참조를 들고 있지
+          // 않도록 선택을 초기화한다. (직접 배치한 이미지/도형/텍스트 상자는
+          // applyAiStructuralHtml이 그대로 보존한다.)
+          selectFreeEl(null);
+          selectStructEl(null);
+          applyAiStructuralHtml(applyRootClassDirective(cleaned));
+          status.textContent = "완료 · 직접 배치한 이미지·도형은 그대로 유지돼요 (마음에 들지 않으면 Ctrl+Z)";
+          appendChatMsg(panel, "assistant", "슬라이드 내용을 수정했습니다. (직접 배치한 이미지·도형·텍스트 상자는 유지됩니다)", null);
         }
         snapshot();
       })
@@ -568,7 +867,7 @@
     fetch("/api/ai/route", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: prompt, html: getCleanRootHtml(), deckContext: deckContext }),
+      body: JSON.stringify({ prompt: prompt, html: getAiContextHtml(), deckContext: deckContext }),
     })
       .then(function (r) { return r.json(); })
       .then(function (data) {
@@ -686,6 +985,156 @@
     }
     sel.removeAllRanges();
     snapshot();
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* 서식 패널 — 파워포인트 "도형 서식"처럼 선택된 요소의 배경/테두리/모서리/       */
+  /* 투명도/그림자를 직접 슬라이더·색상 선택으로 조작한다.                       */
+  /* ------------------------------------------------------------------ */
+
+  var FREE_EL_TYPE_LABEL = {
+    "free-el--text": "텍스트 상자",
+    "free-el--shape": "도형",
+    "free-el--image": "이미지",
+    "free-el--video": "동영상",
+    "free-el--embed": "임베드",
+    "free-el--app": "인터랙티브 데모",
+  };
+
+  function getStylePanel() {
+    return document.getElementById(STYLE_PANEL_ID);
+  }
+
+  function rgbToHex(value) {
+    if (!value) return null;
+    value = value.trim();
+    if (value[0] === "#") return value.length === 7 ? value.toLowerCase() : null;
+    var m = value.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+    if (!m) return null;
+    return (
+      "#" +
+      [m[1], m[2], m[3]]
+        .map(function (n) {
+          var h = parseInt(n, 10).toString(16);
+          return h.length === 1 ? "0" + h : h;
+        })
+        .join("")
+    );
+  }
+
+  // 선택된 요소가 바뀔 때마다, 지금 그 요소의 실제 배경/테두리/모서리/투명도/
+  // 그림자 값을 읽어와 패널 컨트롤에 그대로 반영한다. 편집 모드가 꺼져 있거나
+  // 선택된 요소가 없으면 패널 자체를 숨긴다.
+  function updateStylePanel() {
+    var panel = getStylePanel();
+    if (!panel) return;
+    var el = getStyleTarget();
+    if (!isEditing() || !el) {
+      panel.style.display = "none";
+      return;
+    }
+    panel.style.display = "block";
+
+    // 도넛 조각/연결선 같은 SVG 도형은 CSS background/border가 아니라
+    // fill/stroke로 색이 정해진다. 그래서 이 패널의 "배경색"/"테두리"는
+    // SVG 도형일 때는 fill/stroke를 대신 읽고 쓴다(라벨도 그에 맞게 바꿔준다).
+    // border-radius는 SVG 도형에는 의미가 없어서 그 줄은 통째로 숨긴다.
+    var svg = isSvgShape(el);
+    var typeLabel = svg ? "도형 조각 (SVG: " + el.tagName.toLowerCase() + ")" : el.classList.contains("free-el") ? "요소" : "구조 요소 (Alt+드래그로 이동)";
+    Object.keys(FREE_EL_TYPE_LABEL).forEach(function (cls) {
+      if (el.classList.contains(cls)) typeLabel = FREE_EL_TYPE_LABEL[cls];
+    });
+    panel.querySelector(".sp-type").textContent = typeLabel;
+
+    var cs = getComputedStyle(el);
+
+    panel.querySelector('[data-label-for="bg"]').textContent = svg ? "색상" : "배경색";
+    panel.querySelector('[data-style="bg"]').value = rgbToHex(svg ? cs.fill : cs.backgroundColor) || "#ff6b4a";
+
+    panel.querySelector('[data-label-for="border"]').textContent = svg ? "외곽선" : "테두리";
+    var borderWidth = Math.round(parseFloat(svg ? cs.strokeWidth : cs.borderTopWidth) || 0);
+    panel.querySelector('[data-style="border-width"]').value = Math.min(60, borderWidth);
+    panel.querySelector('[data-style="border-color"]').value = rgbToHex(svg ? cs.stroke : cs.borderTopColor) || "#ffffff";
+
+    panel.querySelector('[data-row-for="radius"]').style.display = svg ? "none" : "block";
+    var radius = Math.round(parseFloat(cs.borderTopLeftRadius) || 0);
+    panel.querySelector('[data-style="radius"]').value = Math.min(40, radius);
+    panel.querySelector('[data-val-for="radius"]').textContent = String(radius);
+
+    var opacityPct = Math.round((parseFloat(cs.opacity) || 1) * 100);
+    panel.querySelector('[data-style="opacity"]').value = opacityPct;
+    panel.querySelector('[data-val-for="opacity"]').textContent = opacityPct + "%";
+
+    // SVG는 그림자를 box-shadow가 아니라 filter:drop-shadow로 표현한다(AI가
+    // 만든 도넛 차트의 포인트 세그먼트도 이미 이 방식으로 은은하게 빛난다).
+    var shadowStyle = svg ? el.style.filter : el.style.boxShadow;
+    var hasShadow = svg ? !!cs.filter && cs.filter !== "none" : !!cs.boxShadow && cs.boxShadow !== "none";
+    panel.querySelector('[data-style="shadow"]').checked = hasShadow;
+    var blurMatch = shadowStyle && shadowStyle.match(/(\d+)px\s+rgba/);
+    var blur = blurMatch ? parseInt(blurMatch[1], 10) : 24;
+    panel.querySelector('[data-style="shadow-blur"]').value = blur;
+    panel.querySelector('[data-val-for="shadow-blur"]').textContent = String(blur);
+    panel.querySelector("[data-shadow-blur-row]").style.display = hasShadow ? "block" : "none";
+  }
+
+  // 이미지/영상/임베드는 실제 내용이 <img>/<video>/<iframe> 등 꽉 찬 자식
+  // 요소라서, 래퍼에만 border-radius를 줘서는 시각적으로 모서리가 잘리지
+  // 않는다(overflow:hidden을 래퍼에 주면 리사이즈 핸들까지 잘려버려서 그 방식은
+  // 피한다). 그래서 모서리 둥글기는 래퍼와 그 안의 미디어 요소에 함께 적용한다.
+  function applyStyleProp(prop) {
+    var el = getStyleTarget();
+    var panel = getStylePanel();
+    if (!el || !panel) return;
+    var svg = isSvgShape(el);
+    var media = el.querySelector && el.querySelector("img, video, iframe");
+
+    if (prop === "bg") {
+      var bgValue = panel.querySelector('[data-style="bg"]').value;
+      if (svg) el.style.fill = bgValue;
+      else el.style.background = bgValue;
+    } else if (prop === "border-color" || prop === "border-width") {
+      var color = panel.querySelector('[data-style="border-color"]').value;
+      var width = parseFloat(panel.querySelector('[data-style="border-width"]').value) || 0;
+      if (svg) {
+        el.style.stroke = color;
+        el.style.strokeWidth = width > 0 ? String(width) : "0";
+      } else {
+        el.style.border = width > 0 ? width + "px solid " + color : "none";
+      }
+    } else if (prop === "radius") {
+      if (svg) return; // SVG 도형에는 모서리 둥글기 개념이 없다
+      var radius = parseFloat(panel.querySelector('[data-style="radius"]').value) || 0;
+      el.style.borderRadius = radius + "px";
+      if (media) media.style.borderRadius = radius + "px";
+      panel.querySelector('[data-val-for="radius"]').textContent = String(radius);
+    } else if (prop === "opacity") {
+      var opacityPct = parseFloat(panel.querySelector('[data-style="opacity"]').value);
+      el.style.opacity = String(opacityPct / 100);
+      panel.querySelector('[data-val-for="opacity"]').textContent = opacityPct + "%";
+    } else if (prop === "shadow" || prop === "shadow-blur") {
+      var on = panel.querySelector('[data-style="shadow"]').checked;
+      var blur = parseFloat(panel.querySelector('[data-style="shadow-blur"]').value) || 24;
+      if (svg) {
+        el.style.filter = on ? "drop-shadow(0 0 " + blur + "px rgba(0,0,0,.6))" : "none";
+      } else {
+        el.style.boxShadow = on ? "0 " + Math.round(blur / 2) + "px " + blur + "px rgba(0,0,0,.45)" : "none";
+      }
+      panel.querySelector('[data-val-for="shadow-blur"]').textContent = String(blur);
+      panel.querySelector("[data-shadow-blur-row]").style.display = on ? "block" : "none";
+    }
+    commitSoon();
+  }
+
+  function clearStyleProp(prop) {
+    var el = getStyleTarget();
+    var panel = getStylePanel();
+    if (!el || !panel) return;
+    if (prop === "bg") {
+      if (isSvgShape(el)) el.style.fill = "none";
+      else el.style.background = "transparent";
+      panel.querySelector('[data-style="bg"]').value = "#000000";
+    }
+    commitSoon();
   }
 
   /* ------------------------------------------------------------------ */
@@ -1194,11 +1643,15 @@
 
   document.addEventListener("mousedown", function (e) {
     if (!isEditing()) return;
+    if (e.target.closest("#" + UI_ID)) return; // 툴바/AI 패널/서식 패널 클릭은 여기서 다루지 않는다
     var delBtn = e.target.closest(".free-el-del");
     if (delBtn) {
       e.preventDefault();
       var toRemove = delBtn.closest(".free-el");
-      if (toRemove) toRemove.remove();
+      if (toRemove) {
+        if (toRemove === selectedFreeEl) selectFreeEl(null);
+        toRemove.remove();
+      }
       snapshot();
       return;
     }
@@ -1216,15 +1669,34 @@
       }
     }
 
-    if (!el) return;
+    if (!el) {
+      // 자유배치 요소가 하나도 없는 지점에서 Alt+클릭(+드래그)하면, 도넛 차트/
+      // 버블 클러스터 같은 "구조 콘텐츠"라도 class가 붙은 가장 안쪽 요소를
+      // 짚어서 서식 패널로 배경/테두리/모서리/그림자를 만질 수 있게 해주고,
+      // 그 자리에서 바로 이동(transform:translate)까지 시작한다.
+      if (e.altKey) {
+        var structEl = nearestStyleableEl(e.target);
+        if (structEl) {
+          e.preventDefault();
+          selectStructEl(structEl);
+          startStructDrag(structEl, e);
+          return;
+        }
+      }
+      selectFreeEl(null); // 빈 배경/구조 텍스트를 그냥 클릭하면 서식 패널을 닫는다
+      selectStructEl(null);
+      return;
+    }
     if (!handle && el.classList.contains("free-el--text") && el.getAttribute("contenteditable") === "true") {
       return; // 텍스트 편집 중에는 커서 배치를 그대로 둔다
     }
     e.preventDefault();
     el.focus();
+    selectFreeEl(el);
     var root = getRoot();
     var rect = root.getBoundingClientRect();
     dragState = {
+      mode: "percent",
       type: handle ? "resize" : "move",
       el: el,
       startX: e.clientX,
@@ -1242,7 +1714,14 @@
     if (!dragState) return;
     var dxPct = ((e.clientX - dragState.startX) / dragState.rectW) * 100;
     var dyPct = ((e.clientY - dragState.startY) / dragState.rectH) * 100;
-    if (dragState.type === "move") {
+    if (dragState.mode === "transform") {
+      // vw/vh는 항상 "지금 이 문서의 뷰포트" 기준이라 어디서 렌더링되든
+      // (썸네일/본편집/전체화면) 같은 비율로 이동한다.
+      var tx = dragState.baseTx + dxPct;
+      var ty = dragState.baseTy + dyPct;
+      dragState.el.style.transform =
+        "translate(" + tx.toFixed(2) + "vw, " + ty.toFixed(2) + "vh)" + (dragState.restTransform ? " " + dragState.restTransform : "");
+    } else if (dragState.type === "move") {
       dragState.el.style.left = dragState.startLeft + dxPct + "%";
       dragState.el.style.top = dragState.startTop + dyPct + "%";
     } else {
@@ -1253,11 +1732,24 @@
         dragState.el.style.height = newHeight + "%";
       }
     }
+    updatePickIndicator(); // 드래그/리사이즈하는 동안에도 피킹 박스가 그대로 따라가게
   });
+
+  // 창 크기가 바뀌면 자유배치 요소의 %기반 좌표는 CSS가 알아서 다시 계산해
+  // 주지만, 피킹 박스는 fixed 좌표(px)로 그려둔 것이라 직접 다시 맞춰줘야 한다.
+  window.addEventListener("resize", updatePickIndicator);
 
   document.addEventListener("mouseup", function () {
     if (dragState) snapshot();
     dragState = null;
+  });
+
+  // 새 요소를 삽입하거나 복제할 때(wrap.focus() 호출)도 서식 패널이 그 요소를
+  // 바로 따라가도록, 포커스가 들어오는 모든 경로를 여기 한 곳에서 잡는다.
+  document.addEventListener("focusin", function (e) {
+    if (!isEditing()) return;
+    var el = e.target && e.target.closest && e.target.closest(".free-el");
+    if (el) selectFreeEl(el);
   });
 
   document.addEventListener("keydown", function (e) {
@@ -1308,6 +1800,7 @@
 
     if (e.key === "Delete" || e.key === "Backspace") {
       e.preventDefault();
+      if (active === selectedFreeEl) selectFreeEl(null);
       active.remove();
       snapshot();
       return;
@@ -1371,6 +1864,25 @@
     enhanceFreeEls();
     isRestoring = false;
     updateHistoryButtons();
+  }
+
+  // AI "텍스트" 단계가 돌려준 결과는 구조 콘텐츠만 다시 쓴 것이다(getAiContextHtml이
+  // free-el을 애초에 보여주지 않았으므로). 그걸 그냥 restore()로 통째로 덮어쓰면
+  // 사용자가 클립보드로 붙여넣은 이미지 같은 free-el이 같이 사라져버리므로,
+  // 덮어쓰기 전에 지금 있는 free-el들을 떼어뒀다가 새 구조 콘텐츠 위에 그대로
+  // 다시 얹는다 — "꾸며줘" 같은 전체 재작성 요청에도 직접 배치한 요소는 항상 남는다.
+  function applyAiStructuralHtml(cleanedHtml) {
+    var root = getRoot();
+    if (!root) return;
+    var preserved = Array.prototype.slice.call(root.querySelectorAll(":scope > .free-el")).map(function (el) {
+      return el.cloneNode(true);
+    });
+    restore(cleanedHtml);
+    var rootAfter = getRoot();
+    if (rootAfter && preserved.length) {
+      preserved.forEach(function (el) { rootAfter.appendChild(el); });
+      enhanceFreeEls();
+    }
   }
 
   function undo() {
@@ -1448,6 +1960,8 @@
       root.removeAttribute("contenteditable");
       stripFreeElChrome(document);
       root.removeEventListener("input", commitSoon);
+      selectedFreeEl = null;
+      selectedStructEl = null;
       var ui = document.getElementById(UI_ID);
       if (ui) ui.remove();
       var uiStyle = document.getElementById(UI_ID + "_style");

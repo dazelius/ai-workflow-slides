@@ -7,38 +7,18 @@
         "title": "타이틀"
       },
       {
-        "file": "deck/hook.html",
-        "title": "오프닝 훅"
+        "file": "deck/slide-mr8kzpi1y.html",
+        "title": "첨언"
       },
       {
-        "file": "deck/goal.html",
-        "title": "오늘의 목표"
+        "file": "deck/slide-mr99b5tu9.html",
+        "title": "AI 좋아"
       }
     ]
   },
   {
-    "act": "1막 · 왜 자동화인가",
+    "act": "들어가기 앞서",
     "items": [
-      {
-        "file": "deck/vibe-coding.html",
-        "title": "AI = 바이브 코딩"
-      },
-      {
-        "file": "deck/goal-productivity.html",
-        "title": "자동화 = 생산성 향상"
-      },
-      {
-        "file": "deck/automation-types.html",
-        "title": "자동화의 종류"
-      },
-      {
-        "file": "deck/no-need-to-chase-trend.html",
-        "title": "유행을 따라갈 필요 없다"
-      },
-      {
-        "file": "deck/essence.html",
-        "title": "본질은 자연어 문제해결"
-      },
       {
         "file": "deck/no-magic-click.html",
         "title": "'딸깍'은 없다"
@@ -55,11 +35,53 @@
     ]
   },
   {
-    "act": "2막 · 진짜 일",
+    "act": "그래서 뭐해야 돼요?",
     "items": [
       {
-        "file": "deck/section-real-work.html",
-        "title": "섹션 · 진짜 일"
+        "file": "deck/slide-mr9c8euiz.html",
+        "title": "요즘 트랜드 보면 이런거 저런거 한다던데..."
+      },
+      {
+        "file": "deck/no-need-to-chase-trend.html",
+        "title": "유행을 따라갈 필요 없다"
+      },
+      {
+        "file": "deck/essence.html",
+        "title": "본질은 자연어 문제해결"
+      }
+    ]
+  },
+  {
+    "act": "왜 자동화인가",
+    "items": [
+      {
+        "file": "deck/slide-mr9a05br1.html",
+        "title": "기획자는 AI를 어떻게 활용할까요?"
+      },
+      {
+        "file": "deck/vibe-coding.html",
+        "title": "AI = 바이브 코딩"
+      },
+      {
+        "file": "deck/goal-productivity.html",
+        "title": "자동화 = 생산성 향상"
+      },
+      {
+        "file": "deck/automation-types.html",
+        "title": "자동화의 종류"
+      }
+    ]
+  },
+  {
+    "act": "진짜 일",
+    "items": [
+      {
+        "file": "deck/slide-mr9c1q1uf.html",
+        "title": "진짜 일을 찾아서"
+      },
+      {
+        "file": "deck/hook.html",
+        "title": "내가 쓰는 시간이 제품의 퀄리티?"
       },
       {
         "file": "deck/work-for-work.html",
@@ -79,16 +101,12 @@
         "title": "수정 못한 날들"
       },
       {
-        "file": "deck/automate-to-focus.html",
-        "title": "집중을 위한 자동화"
-      },
-      {
         "file": "deck/productivity-strategy.html",
         "title": "생산성을 높이는 두 가지 전략"
       },
       {
-        "file": "deck/day-of-planner-marked.html",
-        "title": "자동화 대상 표시"
+        "file": "deck/section-real-work.html",
+        "title": "진짜 일"
       }
     ]
   },
@@ -106,6 +124,10 @@
       {
         "file": "deck/slide-mr4fae250.html",
         "title": "Define 관리 부실"
+      },
+      {
+        "file": "deck/slide-mr9d4rz42.html",
+        "title": "규칙부터 만듭니다"
       },
       {
         "file": "deck/slide-mr4euqamh.html",

@@ -9,48 +9,42 @@
 <p class="title-lg">구현 방식</p>
 
 <div class="center-stage">
-  <div class="row" style="gap:3vw; align-items:flex-start;">
-    
-    <div class="col" style="flex:1; gap:1.5vw;">
-      <div class="framework-step">
-        <div class="step-num">1</div>
-        <div class="step-body">
-          <div class="step-title">엑셀에서 Define 추출</div>
-          <div class="step-desc">각 테이블 Define이 담긴 Excel 파일에서 스키마 정보를 파싱</div>
-        </div>
+  <div class="col" style="gap:2vw; width:100%;">
+
+    <div class="row" style="gap:0; align-items:stretch; width:100%;">
+
+      <div class="col" style="flex:1; gap:0.8vw; align-items:center; text-align:center;">
+        <div style="width:3.2vw; height:3.2vw; border-radius:50%; background:rgba(255,107,74,0.12); border:1px solid rgba(255,107,74,0.4); display:flex; align-items:center; justify-content:center; font-size:1.3vw; color:#ff6b4a; font-weight:700;">1</div>
+        <div style="font-size:1.05vw; font-weight:600; color:#f5f5f5;">Excel Define</div>
+        <div style="font-size:0.85vw; color:#9a9a9a; line-height:1.5;">테이블별 스키마가<br>정리된 원본 문서</div>
+        <div style="margin-top:0.3vw; font-size:0.75vw; color:#666; padding:0.3vw 0.8vw; border:1px solid #333; border-radius:0.4vw;">.xlsx</div>
       </div>
 
-      <div class="framework-step">
-        <div class="step-num">2</div>
-        <div class="step-body">
-          <div class="step-title">Python 스크립트 변환</div>
-          <div class="step-desc">추출한 데이터를 DBML(Database Markup Language) 형식으로 텍스트 치환</div>
-        </div>
+      <div style="display:flex; align-items:center; justify-content:center; flex:0 0 3vw; color:#ff6b4a; font-size:1.6vw;">→</div>
+
+      <div class="col" style="flex:1; gap:0.8vw; align-items:center; text-align:center;">
+        <div style="width:3.2vw; height:3.2vw; border-radius:50%; background:rgba(255,107,74,0.12); border:1px solid rgba(255,107,74,0.4); display:flex; align-items:center; justify-content:center; font-size:1.3vw; color:#ff6b4a; font-weight:700;">2</div>
+        <div style="font-size:1.05vw; font-weight:600; color:#f5f5f5;">Python 변환</div>
+        <div style="font-size:0.85vw; color:#9a9a9a; line-height:1.5;">파싱 후 DBML 문법으로<br>텍스트 자동 치환</div>
+        <div style="margin-top:0.3vw; font-size:0.75vw; color:#666; padding:0.3vw 0.8vw; border:1px solid #333; border-radius:0.4vw;">script.py</div>
       </div>
 
-      <div class="framework-step">
-        <div class="step-num">3</div>
-        <div class="step-body">
-          <div class="step-title">dbdiagram.io 렌더링</div>
-          <div class="step-desc">생성된 DBML을 웹 서비스에 입력하면 자동으로 ERD 시각화</div>
-        </div>
+      <div style="display:flex; align-items:center; justify-content:center; flex:0 0 3vw; color:#ff6b4a; font-size:1.6vw;">→</div>
+
+      <div class="col" style="flex:1; gap:0.8vw; align-items:center; text-align:center;">
+        <div style="width:3.2vw; height:3.2vw; border-radius:50%; background:rgba(255,107,74,0.12); border:1px solid rgba(255,107,74,0.4); display:flex; align-items:center; justify-content:center; font-size:1.3vw; color:#ff6b4a; font-weight:700;">3</div>
+        <div style="font-size:1.05vw; font-weight:600; color:#f5f5f5;">DBML 파일</div>
+        <div style="font-size:0.85vw; color:#9a9a9a; line-height:1.5;">테이블·관계가 정의된<br>중간 산출물 텍스트</div>
+        <div style="margin-top:0.3vw; font-size:0.75vw; color:#666; padding:0.3vw 0.8vw; border:1px solid #333; border-radius:0.4vw;">.dbml</div>
       </div>
-    </div>
 
-    <div class="col" style="flex:1; gap:1vw; padding:1.5vw; background:rgba(255,107,74,0.08); border-radius:0.8vw; border:1px solid rgba(255,107,74,0.2);">
-      <div style="font-size:1.1vw; font-weight:600; color:#ff6b4a; margin-bottom:0.5vw;">핵심 이점</div>
-      <ul class="check-list" style="font-size:0.95vw;">
-        <li>엑셀 → DBML 자동 변환으로 수작업 제거</li>
-        <li>스키마 변경 시 스크립트 재실행만으로 ERD 갱신</li>
-        <li>팀원 누구나 같은 방식으로 ERD 관리 가능</li>
-        <li>버전 관리 시스템에 DBML 파일 보관 가능</li>
-      </ul>
-    </div>
+      <div style="display:flex; align-items:center; justify-content:center; flex:0 0 3vw; color:#ff6b4a; font-size:1.6vw;">→</div>
 
-  </div>
-</div>
-
-<div class="page-number" id="page-number"></div></div>
+      <div class="col" style="flex:1; gap:0.8vw; align-items:center; text-align:center;">
+        <div style="width:3.2vw; height:3.2vw; border-radius:50%; background:rgba(255,107,74,0.9); display:flex; align-items:center; justify-content:center; font-size:1.3vw; color:#0b0c10; font-weight:700;">4</div>
+        <div style="font-size:1.05vw; font-weight:600; color:#ff6b4a;">ERD 렌더링</div>
+        <div style="font-size:0.85vw; color:#9a9a9a; line-height:1.5;">dbdiagram.io에 입력해<br>시각적 다이어그램 완성</div>
+        <div style="margin-top:0.3vw; font-size:0.75vw; color:#666; padding:0.3vw 0.8vw; border:1px solid #333; border-radius:0.4vw;">dbdiagram.io</div></div></div></div></div><div class="page-number" id="page-number">27 / 77</div></div>
   <script src="../assets/page-number.js"></script>
   <script src="../assets/editor.js"></script>
 

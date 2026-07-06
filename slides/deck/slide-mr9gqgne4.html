@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="ko"><head>
+<meta charset="UTF-8">
+<title>그리고 웹 프로토타이핑도 좋습니다</title>
+<link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+<div class="slide">
+  <div class="kicker"></div>
+  <p class="title-lg">그리고 웹 프로토타이핑도 좋습니다</p>
+  <div class="center-stage">
+  </div>
+  <div class="page-number" id="page-number">73 / 94</div>
+<div class="free-el free-el--app" contenteditable="false" style="position: absolute; left: 17.9239%; top: 21.1368%; width: 62.2244%; height: 74.6338%; z-index: 10;"><iframe sandbox="allow-scripts allow-forms allow-pointer-lock allow-popups" frameborder="0" srcdoc="&lt;!DOCTYPE html&gt;
+&lt;html lang=&quot;ko&quot;&gt;
+&lt;head&gt;
+&lt;meta charset=&quot;UTF-8&quot;&gt;
+&lt;title&gt;총알 반동 시뮬레이터&lt;/title&gt;
+&lt;style&gt;
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    background: #121316;
+    overflow: hidden;
+    font-family: 'Segoe UI', Arial, sans-serif;
+  }
+  #app {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  #hud {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 0.6em 1em;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #ddd;
+    font-size: clamp(11px, 1.6vw, 14px);
+    z-index: 10;
+    pointer-events: none;
+  }
+  #hud .title {
+    color: #ff6b4a;
+    font-weight: bold;
+  }
+  #hud .info span {
+    margin-left: 1em;
+    color: #aaa;
+  }
+  #hud .info b {
+    color: #fff;
+  }
+  #range {
+    position: relative;
+    flex: 1;
+    width: 100%;
+    background:
+      radial-gradient(ellipse at center, #1c1e24 0%, #101114 80%);
+    cursor: crosshair;
+  }
+  canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  #controls {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.5em 1em;
+    display: flex;
+    gap: 0.8em;
+    align-items: center;
+    background: linear-gradient(to top, rgba(0,0,0,0.55), transparent);
+    color: #ccc;
+    font-size: clamp(10px, 1.4vw, 13px);
+    z-index: 10;
+  }
+  #controls label {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    white-space: nowrap;
+  }
+  #controls input[type=&quot;range&quot;] {
+    width: 6vw;
+    min-width: 50px;
+    accent-color: #ff6b4a;
+  }
+  #controls select {
+    background: #24262c;
+    color: #eee;
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 2px 4px;
+  }
+  #hint {
+    position: absolute;
+    bottom: 3.4em;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #888;
+    font-size: clamp(10px, 1.3vw, 12px);
+    z-index: 10;
+    pointer-events: none;
+    text-align: center;
+    width: 90%;
+  }
+  #ammoBar {
+    position: absolute;
+    bottom: 3.4em;
+    right: 1em;
+    display: flex;
+    gap: 3px;
+    z-index: 10;
+  }
+  .bullet-ico {
+    width: 5px;
+    height: 14px;
+    background: #ff6b4a;
+    border-radius: 2px;
+    opacity: 0.9;
+  }
+  .bullet-ico.spent {
+    background: #444;
+  }
+  #reloadMsg {
+    position: absolute;
+    top: 45%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #ff6b4a;
+    font-size: clamp(16px, 3vw, 26px);
+    font-weight: bold;
+    letter-spacing: 2px;
+    opacity: 0;
+    z-index: 20;
+    pointer-events: none;
+    text-shadow: 0 0 10px rgba(255,107,74,0.6);
+  }
+&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;div id=&quot;app&quot;&gt;
+  &lt;div id=&quot;hud&quot;&gt;
+    &lt;div class=&quot;title&quot;&gt;RECOIL RANGE&lt;/div&gt;
+    &lt;div class=&quot;info&quot;&gt;
+      &lt;span&gt;탄종: &lt;b id=&quot;wLabel&quot;&gt;라이플&lt;/b&gt;&lt;/span&gt;
+      &lt;span&gt;연사: &lt;b id=&quot;fireModeLabel&quot;&gt;자동&lt;/b&gt;&lt;/span&gt;
+      &lt;span&gt;탄약: &lt;b id=&quot;ammoLabel&quot;&gt;30/30&lt;/b&gt;&lt;/span&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+
+  &lt;div id=&quot;range&quot;&gt;
+    &lt;canvas id=&quot;c&quot;&gt;&lt;/canvas&gt;
+    &lt;div id=&quot;reloadMsg&quot;&gt;RELOADING...&lt;/div&gt;
+  &lt;/div&gt;
+
+  &lt;div id=&quot;hint&quot;&gt;마우스 클릭(연타/누르고 있기)으로 발사 · R = 재장전 · 조준점이 반동으로 튀어오르고 서서히 복귀합니다&lt;/div&gt;
+  &lt;div id=&quot;ammoBar&quot;&gt;&lt;/div&gt;
+
+  &lt;div id=&quot;controls&quot;&gt;
+    &lt;label&gt;무기
+      &lt;select id=&quot;weaponSel&quot;&gt;
+        &lt;option value=&quot;rifle&quot;&gt;라이플 (자동)&lt;/option&gt;
+        &lt;option value=&quot;smg&quot;&gt;기관단총 (자동)&lt;/option&gt;
+        &lt;option value=&quot;pistol&quot;&gt;권총 (단발)&lt;/option&gt;
+        &lt;option value=&quot;shotgun&quot;&gt;샷건 (단발)&lt;/option&gt;
+      &lt;/select&gt;
+    &lt;/label&gt;
+    &lt;label&gt;수직반동 &lt;input id=&quot;vRecoil&quot; type=&quot;range&quot; min=&quot;0.3&quot; max=&quot;3&quot; step=&quot;0.1&quot; value=&quot;1&quot;&gt;&lt;/label&gt;
+    &lt;label&gt;수평흔들림 &lt;input id=&quot;hRecoil&quot; type=&quot;range&quot; min=&quot;0&quot; max=&quot;3&quot; step=&quot;0.1&quot; value=&quot;1&quot;&gt;&lt;/label&gt;
+    &lt;label&gt;복귀속도 &lt;input id=&quot;recover&quot; type=&quot;range&quot; min=&quot;0.3&quot; max=&quot;3&quot; step=&quot;0.1&quot; value=&quot;1&quot;&gt;&lt;/label&gt;
+  &lt;/div&gt;
+&lt;/div&gt;
+
+&lt;script&gt;
+(function(){
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  const rangeDiv = document.getElementById('range');
+  const reloadMsg = document.getElementById('reloadMsg');
+  const ammoBarDiv = document.getElementById('ammoBar');
+  const ammoLabel = document.getElementById('ammoLabel');
+  const wLabel = document.getElementById('wLabel');
+  const fireModeLabel = document.getElementById('fireModeLabel');
+  const weaponSel = document.getElementById('weaponSel');
+  const vRecoilSlider = document.getElementById('vRecoil');
+  const hRecoilSlider = document.getElementById('hRecoil');
+  const recoverSlider = document.getElementById('recover');
+
+  function resize(){
+    const rect = rangeDiv.getBoundingClientRect();
+    canvas.width = rect.width * devicePixelRatio;
+    canvas.height = rect.height * devicePixelRatio;
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+    ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+  }
+  window.addEventListener('resize', resize);
+
+  // 무기 프리셋
+  const WEAPONS = {
+    rifle:   { label:'라이플',   auto:true,  fireDelay:100, magSize:30, vKick:14, hKick:6,  recoverSpeed:6, spreadBase:1, kickCam:5 },
+    smg:     { label:'기관단총', auto:true,  fireDelay:70,  magSize:25, vKick:9,  hKick:9,  recoverSpeed:8, spreadBase:1.4, kickCam:4 },
+    pistol:  { label:'권총',     auto:false, fireDelay:180, magSize:12, vKick:16, hKick:5,  recoverSpeed:9, spreadBase:0.7, kickCam:6 },
+    shotgun: { label:'샷건',     auto:false, fireDelay:650, magSize:6,  vKick:26, hKick:14, recoverSpeed:4, spreadBase:2.5, kickCam:10 },
+  };
+
+  let currentKey = 'rifle';
+  let weapon = WEAPONS[currentKey];
+  let ammo = weapon.magSize;
+  let reloading = false;
+  let lastFireTime = 0;
+  let mouseDown = false;
+  let shotsInBurst = 0;
+
+  // 조준점 오프셋 (반동으로 인해 실제 목표점에서 벗어난 정도)
+  let recoilOffset = {x:0, y:0};
+  // 목표(마우스) 위치 - 캔버스 중심 기준 상대좌표 아님, 절대 좌표 사용
+  let baseAim = {x:0, y:0};
+
+  // 탄흔 기록
+  let hits = []; // {x,y,age}
+  let tracers = []; // {x1,y1,x2,y2,age}
+  let camShake = {x:0, y:0};
+
+  function centerPoint(){
+    const rect = rangeDiv.getBoundingClientRect();
+    return {x: rect.width/2, y: rect.height/2};
+  }
+
+  function initAim(){
+    const c = centerPoint();
+    baseAim.x = c.x;
+    baseAim.y = c.y;
+  }
+
+  rangeDiv.addEventListener('mousemove', (e)=&gt;{
+    const rect = rangeDiv.getBoundingClientRect();
+    baseAim.x = e.clientX - rect.left;
+    baseAim.y = e.clientY - rect.top;
+  });
+
+  rangeDiv.addEventListener('mousedown', (e)=&gt;{
+    if(e.button !== 0) return;
+    mouseDown = true;
+    tryFire(true);
+  });
+  window.addEventListener('mouseup', ()=&gt;{ mouseDown = false; });
+
+  window.addEventListener('keydown', (e)=&gt;{
+    if(e.key === 'r' || e.key === 'R'){
+      startReload();
+    }
+  });
+
+  weaponSel.addEventListener('change', ()=&gt;{
+    currentKey = weaponSel.value;
+    weapon = WEAPONS[currentKey];
+    ammo = weapon.magSize;
+    reloading = false;
+    reloadMsg.style.opacity = 0;
+    updateHud();
+  });
+
+  function updateHud(){
+    wLabel.textContent = weapon.label;
+    fireModeLabel.textContent = weapon.auto ? '자동' : '단발';
+    ammoLabel.textContent = ammo + '/' + weapon.magSize;
+    // ammo icons
+    ammoBarDiv.innerHTML = '';
+    const maxShow = Math.min(weapon.magSize, 30);
+    for(let i=0;i&lt;maxShow;i++){
+      const d = document.createElement('div');
+      d.className = 'bullet-ico' + (i &lt; ammo ? '' : ' spent');
+      ammoBarDiv.appendChild(d);
+    }
+  }
+
+  function startReload(){
+    if(reloading || ammo === weapon.magSize) return;
+    reloading = true;
+    reloadMsg.style.opacity = 1;
+    const reloadTime = currentKey === 'shotgun' ? 1800 : 1200;
+    setTimeout(()=&gt;{
+      ammo = weapon.magSize;
+      reloading = false;
+      reloadMsg.style.opacity = 0;
+      shotsInBurst = 0;
+      updateHud();
+    }, reloadTime);
+  }
+
+  function tryFire(isFirstPress){
+    const now = performance.now();
+    if(reloading) return;
+    if(ammo &lt;= 0){
+      startReload();
+      return;
+    }
+    if(now - lastFireTime &lt; weapon.fireDelay) return;
+    if(!weapon.auto &amp;&amp; !isFirstPress) return;
+    lastFireTime = now;
+    fire();
+  }
+
+  function fire(){
+    ammo--;
+    shotsInBurst++;
+    updateHud();
+
+    const vMul = parseFloat(vRecoilSlider.value);
+    const hMul = parseFloat(hRecoilSlider.value);
+    const recMul = parseFloat(recoverSlider.value);
+
+    // 연사가 계속될수록 반동 패턴이 조금 더 커지다가 최대치에서 saturate
+    const stack = Math.min(shotsInBurst, 8);
+    const growth = 1 + stack * 0.12;
+
+    // 수직은 항상 위로, 수평은 랜덤 지그재그 (실제 게임 반동패턴 느낌)
+    const vKick = weapon.vKick * vMul * growth * (0.85 + Math.random()*0.3);
+    const hDir = (shotsInBurst % 2 === 0 ? 1 : -1) * (Math.random() &gt; 0.25 ? 1 : -1);
+    const hKick = weapon.hKick * hMul * growth * (Math.random()*0.8+0.3) * hDir;
+
+    recoilOffset.y -= vKick;
+    recoilOffset.x += hKick;
+
+    // 카메라 쉐이크 (짧은 임펄스)
+    camShake.x += (Math.random()-0.5) * weapon.kickCam * hMul * 0.5;
+    camShake.y += weapon.kickCam * vMul * 0.4;
+
+    // 총알 궤적 및 탄착점 계산
+    const spread = weapon.spreadBase * (1 + stack*0.15);
+    const pellets = currentKey === 'shotgun' ? 8 : 1;
+    const aimX = baseAim.x + recoilOffset.x;
+    const aimY = baseAim.y + recoilOffset.y;
+
+    for(let p=0;p&lt;pellets;p++){
+      const ang = Math.random()*Math.PI*2;
+      const rad = Math.random()*spread*6;
+      const hx = aimX + Math.cos(ang)*rad + (Math.random()-0.5)*spread*2;
+      const hy = aimY + Math.sin(ang)*rad + (Math.random()-0.5)*spread*2;
+      hits.push({x:hx, y:hy, age:0});
+      tracers.push({x1: aimX, y1: rangeDiv.getBoundingClientRect().height + 40, x2: hx, y2: hy, age:0});
+    }
+    if(hits.length &gt; 120) hits.splice(0, hits.length-120);
+    if(tracers.length &gt; 40) tracers.splice(0, tracers.length-40);
+
+    if(ammo &lt;= 0){
+      setTimeout(()=&gt;{ if(!reloading) startReload(); }, 150);
+    }
+  }
+
+  function resetBurstIfIdle(){
+    if(performance.now() - lastFireTime &gt; 300){
+      shotsInBurst = 0;
+    }
+  }
+
+  function drawTarget(cx, cy){
+    // 배경 격자
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.lineWidth = 1;
+    const rect = rangeDiv.getBoundingClientRect();
+    const step = 40;
+    for(let x=0; x&lt;rect.width; x+=step){
+      ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,rect.height); ctx.stroke();
+    }
+    for(let y=0; y&lt;rect.height; y+=step){
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(rect.width,y); ctx.stroke();
+    }
+    ctx.restore();
+
+    // 과녁
+    ctx.save();
+    ctx.translate(cx, cy);
+    const rings = [90,65,42,22];
+    const colors = ['#3a1c1c','#5a2424','#7a2e2e','#ff6b4a'];
+    rings.forEach((r,i)=&gt;{
+      ctx.beginPath();
+      ctx.arc(0,0,r,0,Math.PI*2);
+      ctx.fillStyle = colors[i];
+      ctx.globalAlpha = 0.85;
+      ctx.fill();
+    });
+    ctx.beginPath();
+    ctx.arc(0,0,6,0,Math.PI*2);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawCrosshair(x, y){
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.strokeStyle = '#ff6b4a';
+    ctx.lineWidth = 2;
+    const len = 10;
+    const gap = 5;
+    ctx.beginPath();
+    ctx.moveTo(-len-gap, 0); ctx.lineTo(-gap, 0);
+    ctx.moveTo(gap, 0); ctx.lineTo(len+gap, 0);
+    ctx.moveTo(0, -len-gap); ctx.lineTo(0, -gap);
+    ctx.moveTo(0, gap); ctx.lineTo(0, len+gap);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0,0,2,0,Math.PI*2);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawHits(){
+    for(let i=hits.length-1;i&gt;=0;i--){
+      const h = hits[i];
+      h.age += 1;
+      const alpha = Math.max(0, 1 - h.age/180);
+      if(alpha &lt;= 0){ hits.splice(i,1); continue; }
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = '#111';
+      ctx.beginPath();
+      ctx.arc(h.x, h.y, 3.5, 0, Math.PI*2);
+      ctx.fill();
+      ctx.strokeStyle = '#ff6b4a';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function drawTracers(){
+    for(let i=tracers.length-1;i&gt;=0;i--){
+      const t = tracers[i];
+      t.age += 1;
+      const alpha = Math.max(0, 1 - t.age/6);
+      if(alpha &lt;= 0){ tracers.splice(i,1); continue; }
+      ctx.save();
+      ctx.globalAlpha = alpha * 0.8;
+      ctx.strokeStyle = '#ffd7a8';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(t.x1, t.y1);
+      ctx.lineTo(t.x2, t.y2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function update(){
+    // 반동 자연 복귀
+    const recMul = parseFloat(recoverSlider.value);
+    const recoverSpeed = weapon.recoverSpeed * recMul * 0.016;
+    recoilOffset.x *= (1 - Math.min(1, recoverSpeed*1.2));
+    recoilOffset.y *= (1 - Math.min(1, recoverSpeed*1.2));
+    if(Math.abs(recoilOffset.x) &lt; 0.05) recoilOffset.x = 0;
+    if(Math.abs(recoilOffset.y) &lt; 0.05) recoilOffset.y = 0;
+
+    camShake.x *= 0.85;
+    camShake.y *= 0.85;
+
+    if(mouseDown &amp;&amp; weapon.auto){
+      tryFire(false);
+    }
+    resetBurstIfIdle();
+  }
+
+  function render(){
+    const rect = rangeDiv.getBoundingClientRect();
+    ctx.clearRect(0,0,rect.width, rect.height);
+
+    ctx.save();
+    ctx.translate(camShake.x, camShake.y);
+
+    const c = centerPoint();
+    drawTarget(c.x, c.y + 20);
+    drawHits();
+    drawTracers();
+
+    const aimX = baseAim.x + recoilOffset.x;
+    const aimY = baseAim.y + recoilOffset.y;
+    drawCrosshair(aimX, aimY);
+
+    ctx.restore();
+  }
+
+  function loop(){
+    update();
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  // 초기화
+  function init(){
+    resize();
+    initAim();
+    updateHud();
+    loop();
+  }
+  window.addEventListener('load', init);
+  // iframe 내 즉시 실행 대비
+  setTimeout(init, 50);
+
+})();
+&lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;"></iframe></div></div>
+  <script src="../assets/page-number.js"></script>
+  <script src="../assets/editor.js"></script>
+
+
+</body></html>

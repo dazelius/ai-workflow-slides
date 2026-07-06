@@ -48,6 +48,10 @@
       {
         "file": "deck/essence.html",
         "title": "본질은 자연어 문제해결"
+      },
+      {
+        "file": "deck/slide-mr9dpx2gv.html",
+        "title": "마인드셋"
       }
     ]
   },
@@ -103,10 +107,6 @@
       {
         "file": "deck/productivity-strategy.html",
         "title": "생산성을 높이는 두 가지 전략"
-      },
-      {
-        "file": "deck/section-real-work.html",
-        "title": "진짜 일"
       }
     ]
   },
@@ -115,7 +115,7 @@
     "items": [
       {
         "file": "deck/slide-mr4eoti5j.html",
-        "title": "매크로"
+        "title": "매크로 사례 1"
       },
       {
         "file": "deck/slide-mr4ernr57.html",
@@ -146,6 +146,10 @@
         "title": "임베드"
       },
       {
+        "file": "deck/slide-mr9dgbbpg.html",
+        "title": "매크로 사례 2"
+      },
+      {
         "file": "deck/slide-mr8k6u14o.html",
         "title": "로컬라이징 사례"
       },
@@ -156,11 +160,11 @@
     ]
   },
   {
-    "act": "3막 · 비주얼라이즈",
+    "act": "비주얼라이즈",
     "items": [
       {
         "file": "deck/section-visualize.html",
-        "title": "섹션 · 비주얼라이즈"
+        "title": "비주얼라이즈"
       },
       {
         "file": "deck/slide-mr4e4om56.html",
@@ -227,12 +231,12 @@
         "title": "슈터 게임에서의 피드백"
       },
       {
-        "file": "deck/slide-mr4frmcuy.html",
-        "title": "유니티"
-      },
-      {
         "file": "deck/slide-mr4fpvc78.html",
         "title": "LevelViewer 공유"
+      },
+      {
+        "file": "deck/slide-mr4frmcuy.html",
+        "title": "유니티"
       }
     ]
   },
@@ -277,8 +281,82 @@
     "act": "챗봇",
     "items": [
       {
+        "file": "deck/slide-mr9ekff24.html",
+        "title": "챗봇 사례"
+      },
+      {
+        "file": "deck/slide-mr9f5pxbc.html",
+        "title": "처음엔..."
+      },
+      {
+        "file": "deck/slide-mr9ej8g9f.html",
+        "title": "도입 배경"
+      },
+      {
+        "file": "deck/slide-mr9fdjunf.html",
+        "title": "챗봇 구조"
+      },
+      {
+        "file": "deck/slide-mr9fi41v4.html",
+        "title": "영상 공유"
+      },
+      {
         "file": "deck/slide-mr8j0mxuj.html",
-        "title": "새 슬라이드"
+        "title": "테이블 자동화까지.."
+      }
+    ]
+  },
+  {
+    "act": "프로토타이핑",
+    "items": [
+      {
+        "file": "deck/slide-mr9fnzkap.html",
+        "title": "프로토타이핑"
+      },
+      {
+        "file": "deck/slide-mr9fofkkm.html",
+        "title": "가장 비싼 업무가 뭘까요?"
+      },
+      {
+        "file": "deck/slide-mr9fopoxc.html",
+        "title": "저는 킥오프 회의라고 생각합니다"
+      },
+      {
+        "file": "deck/slide-mr9fsu2il.html",
+        "title": "원점으로 돌아가서 생각해보면"
+      },
+      {
+        "file": "deck/slide-mr9fvmgct.html",
+        "title": "시대가 달라졌다"
+      },
+      {
+        "file": "deck/slide-mr9fy67lk.html",
+        "title": "사례"
+      },
+      {
+        "file": "deck/slide-mr9g0ejr3.html",
+        "title": "잠시만요"
+      },
+      {
+        "file": "deck/slide-mr9g6aarc.html",
+        "title": "프로토타이핑 진행"
+      },
+      {
+        "file": "deck/slide-mr9gj6239.html",
+        "title": "소감"
+      },
+      {
+        "file": "deck/slide-mr9gqgne4.html",
+        "title": "그리고 웹 프로토타이핑도 좋습니다"
+      }
+    ]
+  },
+  {
+    "act": "스토리 초안 생성 보조",
+    "items": [
+      {
+        "file": "deck/slide-mr9gteg4n.html",
+        "title": "초안 생성기"
       }
     ]
   },
@@ -369,6 +447,15 @@
       {
         "file": "deck/thank-you.html",
         "title": "감사 인사 · Q&A"
+      }
+    ]
+  },
+  {
+    "act": "Appendix",
+    "items": [
+      {
+        "file": "deck/slide-mr9fkrkml.html",
+        "title": "프로세스를 좀 더 파괴적으로 생각해야 되지 않나 싶음"
       }
     ]
   }

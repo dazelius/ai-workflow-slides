@@ -5,73 +5,70 @@
 <link rel="stylesheet" href="../assets/styles.css">
 </head>
 <body>
-<div class="slide"><div class="kicker">매크로 · 사례 2</div>
-<p class="title-lg">스트링 테이블 <span class="accent">실시간 연동</span></p>
+<div class="slide"><div class="kicker"><span style="font-weight: normal;"><span style="color: rgb(153, 157, 165); font-size: 1.4vw;">조직에서는 스트링 테이블을 </span><span class="hl-box" style="color: rgb(153, 157, 165); font-size: 1.4vw;">구글 시트</span><span style="color: rgb(153, 157, 165); font-size: 1.4vw;">로 관리</span></span></div><div class="kicker"><span style="font-weight: normal;"><span style="color: rgb(153, 157, 165); font-size: 1.4vw;">실제 기획 엑셀에는 </span><span class="hl-box" style="color: rgb(153, 157, 165); font-size: 1.4vw;">로컬라이징 키</span><span style="color: rgb(153, 157, 165); font-size: 1.4vw;">만 입력되어 있어 <br>기획자가 텍스트 내용을 바로 확인할 수 없음</span></span></div><div class="center-stage"><div class="col" style="gap:1.6vw;">
 
-<div class="center-stage">
-  <div class="col" style="gap:2vw;">
-    
-    <div class="row" style="gap:2vw; align-items:flex-start;">
-      <div class="col" style="flex:1; gap:1vw;">
-        <p class="body-lg" style="margin-bottom:0.5vw;">조직에서는 스트링 테이블을 <span class="hl-box">구글 시트</span>로 관리</p>
-        <p class="body-lg" style="margin-bottom:0.5vw;">실제 엑셀 데이터에는 <span class="hl-box">로컬라이징 키</span>만 입력되어 있어서</p>
-        <p class="body-lg" style="margin-bottom:1.5vw;">기획자가 텍스트 내용을 바로 확인할 수 없음</p>
-        
-        <div style="background:rgba(255,255,255,0.05); border-left:0.2vw solid #ff6b4a; padding:1vw 1.5vw; border-radius:0.4vw;">
-          <p class="body-lg" style="margin-bottom:0.3vw; opacity:0.7;">만약 엑셀 ↔ 엑셀이었다면</p>
+    <div class="row" style="gap:2vw; align-items:stretch;">
+
+      <div style="flex:1.1; background:rgba(255,255,255,0.03); border-radius:0.6vw; padding:1.4vw 1.6vw; border:0.1vw solid rgba(255,255,255,0.1); display:flex; flex-direction:column; gap:1vw;">
+
+        <div>
+          <p style="font-size:0.95vw; color:rgba(255,255,255,0.55); margin-bottom:0.6vw; font-weight:600;">기획 엑셀 (로컬)</p>
+          <div style="background:#1a1b1f; border-radius:0.4vw; padding:0.9vw 1vw; font-family:monospace; font-size:0.8vw; color:#8892b0;">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.4vw; border-bottom:0.05vw solid rgba(255,255,255,0.2); padding-bottom:0.4vw; margin-bottom:0.4vw;">
+              <span style="color:rgba(255,255,255,0.5);">아이템ID</span>
+              <span style="color:rgba(255,255,255,0.5);">아이템명</span>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.4vw; margin-bottom:0.3vw;">
+              <span>ITEM_001</span>
+              <span style="color:#ff6b4a;">STR_ITEM_001</span>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.4vw;">
+              <span>ITEM_002</span>
+              <span style="color:#ff6b4a;">STR_ITEM_002</span>
+            </div>
+          </div>
+        </div>
+
+        <p style="font-size:1.1vw; color:rgba(255,255,255,0.35); text-align:center;">↕ 키로만 연결, 직접 대조 불가</p>
+
+        <div>
+          <p style="font-size:0.95vw; color:rgba(255,255,255,0.55); margin-bottom:0.6vw; font-weight:600;">스트링 시트 (구글)</p>
+          <div style="background:#1a1b1f; border-radius:0.4vw; padding:0.9vw 1vw; font-family:monospace; font-size:0.8vw; color:#8892b0;">
+            <div style="display:grid; grid-template-columns:1.2fr 1fr 1fr; gap:0.4vw; border-bottom:0.05vw solid rgba(255,255,255,0.2); padding-bottom:0.4vw; margin-bottom:0.4vw;">
+              <span style="color:rgba(255,255,255,0.5);">KEY</span>
+              <span style="color:rgba(255,255,255,0.5);">KR</span>
+              <span style="color:rgba(255,255,255,0.5);">EN</span>
+            </div>
+            <div style="display:grid; grid-template-columns:1.2fr 1fr 1fr; gap:0.4vw; margin-bottom:0.3vw;">
+              <span style="color:#ff6b4a;">STR_ITEM_001</span>
+              <span>불의 검</span>
+              <span>Fire Sword</span>
+            </div>
+            <div style="display:grid; grid-template-columns:1.2fr 1fr 1fr; gap:0.4vw;">
+              <span style="color:#ff6b4a;">STR_ITEM_002</span>
+              <span>얼음 방패</span>
+              <span>Ice Shield</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="col" style="flex:0.9; gap:1vw; justify-content:center;">
+        <div style="background:rgba(255,255,255,0.05); border-left:0.2vw solid #ff6b4a; padding:1.2vw 1.6vw; border-radius:0.4vw;">
+          <p class="body-lg" style="margin-bottom:0.4vw; opacity:0.7;">만약 엑셀 ↔ 엑셀이었다면</p>
           <p class="body-lg" style="color:#ff6b4a;">VLOOKUP으로 참조라도 했을 텐데...</p>
         </div>
-      </div>
-
-      <div style="flex:1; background:rgba(255,255,255,0.03); border-radius:0.6vw; padding:1.5vw; border:0.1vw solid rgba(255,255,255,0.1);">
-        <p style="font-size:0.9vw; color:rgba(255,255,255,0.5); margin-bottom:0.8vw; font-weight:600;">기획 엑셀 (로컬)</p>
-        <div style="background:#1a1b1f; border-radius:0.3vw; padding:0.8vw; font-family:monospace; font-size:0.75vw; color:#8892b0; margin-bottom:1vw;">
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.3vw; border-bottom:0.05vw solid rgba(255,255,255,0.2); padding-bottom:0.3vw; margin-bottom:0.3vw;">
-            <span style="color:rgba(255,255,255,0.5);">아이템ID</span>
-            <span style="color:rgba(255,255,255,0.5);">아이템명</span>
-          </div>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.3vw; margin-bottom:0.2vw;">
-            <span>ITEM_001</span>
-            <span style="color:#ff6b4a;">STR_ITEM_001</span>
-          </div>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.3vw;">
-            <span>ITEM_002</span>
-            <span style="color:#ff6b4a;">STR_ITEM_002</span>
-          </div>
-        </div>
-        <p style="font-size:0.75vw; color:rgba(255,255,255,0.4); text-align:center;">↓ ↑</p>
-        <p style="font-size:0.9vw; color:rgba(255,255,255,0.5); margin-bottom:0.8vw; font-weight:600;">스트링 시트 (구글)</p>
-        <div style="background:#1a1b1f; border-radius:0.3vw; padding:0.8vw; font-family:monospace; font-size:0.75vw; color:#8892b0;">
-          <div style="display:grid; grid-template-columns:1.2fr 1fr 1fr; gap:0.3vw; border-bottom:0.05vw solid rgba(255,255,255,0.2); padding-bottom:0.3vw; margin-bottom:0.3vw;">
-            <span style="color:rgba(255,255,255,0.5);">KEY</span>
-            <span style="color:rgba(255,255,255,0.5);">KR</span>
-            <span style="color:rgba(255,255,255,0.5);">EN</span>
-          </div>
-          <div style="display:grid; grid-template-columns:1.2fr 1fr 1fr; gap:0.3vw; margin-bottom:0.2vw;">
-            <span style="color:#ff6b4a;">STR_ITEM_001</span>
-            <span>불의 검</span>
-            <span>Fire Sword</span>
-          </div>
-          <div style="display:grid; grid-template-columns:1.2fr 1fr 1fr; gap:0.3vw;">
-            <span style="color:#ff6b4a;">STR_ITEM_002</span>
-            <span>얼음 방패</span>
-            <span>Ice Shield</span>
-          </div>
+        <div style="background:rgba(255,255,255,0.05); border-left:0.2vw solid rgba(255,255,255,0.3); padding:1.2vw 1.6vw; border-radius:0.4vw;">
+          <p class="body-lg" style="opacity:0.85;">엑셀과 구글 시트, <span class="hl-box">서로 다른 플랫폼</span> 사이의 참조가 필요한 문제</p>
         </div>
       </div>
-    </div>
 
-    <div style="background:linear-gradient(135deg, rgba(255,107,74,0.1), rgba(255,107,74,0.05)); border-radius:0.6vw; padding:1.5vw; border:0.1vw solid rgba(255,107,74,0.3); margin-top:1vw;">
-      <p class="body-lg" style="margin-bottom:0.5vw; font-weight:600; color:#ff6b4a;">해결 방법</p>
-      <p class="body-lg" style="opacity:0.9;"><span class="hl-box">VSTO</span> (Visual Studio Tools for Office) + <span class="hl-box">Apps Script</span>를 활용해</p>
-      <p class="body-lg" style="opacity:0.9;">엑셀 ↔ 구글 시트 실시간 연동 구현</p>
-      <p class="body-lg" style="margin-top:0.8vw; font-size:0.85vw; opacity:0.6;">→ 기획자가 엑셀에서 키만 입력하면 실제 텍스트가 자동으로 표시됨</p>
     </div>
-
   </div>
 </div>
 
-<div class="page-number" id="page-number">27 / 70</div></div>
+<div class="page-number" id="page-number">30 / 77</div></div>
   <script src="../assets/page-number.js"></script>
   <script src="../assets/editor.js"></script>
 

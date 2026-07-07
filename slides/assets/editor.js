@@ -337,7 +337,6 @@
     image: '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
     video: '<path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/>',
     "code-2": '<path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/>',
-    sparkles: '<path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/>',
     "bring-to-front": '<rect x="8" y="8" width="8" height="8" rx="2"/><path d="M4 10a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2"/><path d="M14 20a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-4a2 2 0 0 0-2-2"/>',
     "send-to-back": '<rect x="14" y="14" width="8" height="8" rx="2"/><rect x="2" y="2" width="8" height="8" rx="2"/><path d="M7 14v1a2 2 0 0 0 2 2h1"/><path d="M14 7h1a2 2 0 0 1 2 2v1"/>',
     copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
@@ -345,9 +344,6 @@
     save: '<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>',
     x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
     palette: '<path d="M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z"/><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/>',
-    send: '<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/>',
-    squarePen: '<path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/>',
-    key: '<path d="M2 18v3c0 .6.4 1 1 1h4v-3h3v-3h2l1.4-1.4a6.5 6.5 0 1 0-4-4Z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/>',
   };
 
   function icon(name, size) {
@@ -631,10 +627,10 @@
       "box-sizing:border-box;}" +
       "#" + UI_ID + " .cestepper{display:flex;align-items:center;gap:0;}" +
       "#" + UI_ID + " .cestepper > .ce-icon{opacity:.7;margin:0 5px 0 3px;}" +
-      "#" + UI_ID + " button.ai-btn{color:#c9b8ff;background:linear-gradient(180deg,#3a2f57,#302650);" +
-      "border-color:#5a4a8f;font-weight:700;}" +
-      "#" + UI_ID + " button.ai-btn:hover{border-color:#a78bfa;color:#e6ddff;" +
-      "background:linear-gradient(180deg,#453769,#352a5c);}" +
+      // 드래그 중 다른 요소/슬라이드 중앙과 정렬되는 순간 표시되는 스냅 가이드선.
+      ".snap-guide{position:absolute;z-index:999997;pointer-events:none;background:#ff6b4a;opacity:.9;}" +
+      ".snap-guide--v{width:1px;top:0;bottom:0;}" +
+      ".snap-guide--h{height:1px;left:0;right:0;}" +
       "#" + UI_ID + " button.save-btn{color:#1b1c20;background:#ff6b4a;border-color:#ff6b4a;font-weight:700;}" +
       "#" + UI_ID + " button.save-btn:hover{background:#ff7f61;border-color:#ff7f61;color:#1b1c20;}" +
       "#" + UI_ID + " .ce-icon{display:block;flex:none;}" +
@@ -1678,6 +1674,27 @@
     snapshot();
   }
 
+  // 맨앞/맨뒤가 아니라 딱 한 칸만 앞/뒤로 — 바로 위(아래)에 있는 요소와
+  // z-index를 맞바꾸는 방식이라 겹침 순서를 세밀하게 조정할 수 있다.
+  function stepZOrder(el, dir) {
+    var root = getRoot();
+    if (!root) return;
+    var mine = parseInt(el.style.zIndex || "10", 10);
+    var target = null;
+    var targetZ = null;
+    root.querySelectorAll(".free-el").forEach(function (other) {
+      if (other === el) return;
+      var z = parseInt(other.style.zIndex || "10", 10);
+      if (isNaN(z)) return;
+      if (dir > 0 && z > mine && (targetZ === null || z < targetZ)) { target = other; targetZ = z; }
+      if (dir < 0 && z < mine && (targetZ === null || z > targetZ)) { target = other; targetZ = z; }
+    });
+    if (!target) return; // 이미 맨앞/맨뒤
+    target.style.zIndex = String(mine);
+    el.style.zIndex = String(targetZ);
+    snapshot();
+  }
+
   function duplicateSelected() {
     var el = getSelectedFreeEl();
     if (!el) return;
@@ -1696,6 +1713,41 @@
     clone.focus();
     snapshot();
   }
+
+  // Ctrl+C/X로 복사한 자유배치 요소의 HTML (세션 내부 클립보드).
+  var freeElClipboard = null;
+
+  function pasteFreeElFromClipboard() {
+    if (!freeElClipboard) return;
+    var root = getRoot();
+    if (!root) return;
+    var tmp = document.createElement("div");
+    tmp.innerHTML = freeElClipboard;
+    var clone = tmp.firstElementChild;
+    if (!clone || !clone.classList.contains("free-el")) return;
+    var left = parseFloat(clone.style.left) || 0;
+    var top = parseFloat(clone.style.top) || 0;
+    clone.style.left = left + 3 + "%";
+    clone.style.top = top + 3 + "%";
+    clone.style.zIndex = String(nextZIndex());
+    clone.setAttribute("contenteditable", "false");
+    root.appendChild(clone);
+    enhanceFreeEls();
+    clone.focus();
+    snapshot();
+    // 같은 자리에 계속 겹쳐 붙지 않도록, 다음 붙여넣기는 한 칸 더 어긋나게 한다.
+    tmp.innerHTML = freeElClipboard;
+    var next = tmp.firstElementChild;
+    next.style.left = left + 3 + "%";
+    next.style.top = top + 3 + "%";
+    freeElClipboard = next.outerHTML;
+  }
+
+  // 다른 앱에서 이미지를 복사해 돌아오는 경우와 충돌하지 않도록, 창을 벗어나면
+  // 내부 요소 클립보드를 비운다 (밖에서 복사한 것이 항상 우선하게).
+  window.addEventListener("blur", function () {
+    freeElClipboard = null;
+  });
 
   function enhanceFreeEls() {
     document.querySelectorAll(".free-el").forEach(function (fi) {
@@ -1740,7 +1792,7 @@
   }
 
   function stripFreeElChrome(scopeEl) {
-    scopeEl.querySelectorAll(".free-el-handle, .free-el-del, .free-el-shield").forEach(function (el) {
+    scopeEl.querySelectorAll(".free-el-handle, .free-el-del, .free-el-shield, .snap-guide").forEach(function (el) {
       el.remove();
     });
     scopeEl.querySelectorAll(".free-el").forEach(function (fi) {
@@ -1866,6 +1918,7 @@
     selectFreeEl(el);
     var root = getRoot();
     var rect = root.getBoundingClientRect();
+    var elRect = el.getBoundingClientRect();
     dragState = {
       mode: "percent",
       type: handle ? "resize" : "move",
@@ -1878,8 +1931,78 @@
       startHeight: el.style.height ? parseFloat(el.style.height) : null,
       rectW: rect.width,
       rectH: rect.height,
+      // 스냅용: 드래그하는 요소의 실제 렌더 크기(슬라이드 % 기준)와,
+      // 다른 요소들의 가장자리/중앙에서 뽑은 정렬 후보선들.
+      elWPct: (elRect.width / rect.width) * 100,
+      elHPct: (elRect.height / rect.height) * 100,
+      snap: handle ? null : buildSnapCandidates(el, root, rect),
     };
   });
+
+  // 슬라이드 중앙(50%)과 다른 자유배치 요소들의 좌/중/우, 상/중/하 위치를
+  // 스냅 후보선으로 수집한다. 드래그 중 이 선들과 0.7% 이내로 가까워지면
+  // 자석처럼 달라붙고 가이드선이 표시된다 (파워포인트의 스마트 가이드).
+  function buildSnapCandidates(movingEl, root, rootRect) {
+    var xs = [50];
+    var ys = [50];
+    root.querySelectorAll(".free-el").forEach(function (other) {
+      if (other === movingEl) return;
+      var r = other.getBoundingClientRect();
+      var l = ((r.left - rootRect.left) / rootRect.width) * 100;
+      var t = ((r.top - rootRect.top) / rootRect.height) * 100;
+      var w = (r.width / rootRect.width) * 100;
+      var h = (r.height / rootRect.height) * 100;
+      xs.push(l, l + w / 2, l + w);
+      ys.push(t, t + h / 2, t + h);
+    });
+    return { xs: xs, ys: ys };
+  }
+
+  var SNAP_THRESHOLD_PCT = 0.7;
+
+  function applySnap(value, size, candidates) {
+    // 요소의 시작점 / 중앙 / 끝점 각각이 후보선에 닿는지 순서대로 확인한다.
+    var anchors = [0, size / 2, size];
+    for (var a = 0; a < anchors.length; a++) {
+      for (var c = 0; c < candidates.length; c++) {
+        if (Math.abs(value + anchors[a] - candidates[c]) < SNAP_THRESHOLD_PCT) {
+          return { value: candidates[c] - anchors[a], line: candidates[c] };
+        }
+      }
+    }
+    return { value: value, line: null };
+  }
+
+  function updateSnapGuides(vLine, hLine) {
+    var root = getRoot();
+    if (!root) return;
+    var v = root.querySelector(".snap-guide--v");
+    var h = root.querySelector(".snap-guide--h");
+    if (vLine !== null) {
+      if (!v) {
+        v = document.createElement("div");
+        v.className = "snap-guide snap-guide--v";
+        root.appendChild(v);
+      }
+      v.style.left = vLine + "%";
+    } else if (v) {
+      v.remove();
+    }
+    if (hLine !== null) {
+      if (!h) {
+        h = document.createElement("div");
+        h.className = "snap-guide snap-guide--h";
+        root.appendChild(h);
+      }
+      h.style.top = hLine + "%";
+    } else if (h) {
+      h.remove();
+    }
+  }
+
+  function clearSnapGuides() {
+    document.querySelectorAll(".snap-guide").forEach(function (g) { g.remove(); });
+  }
 
   document.addEventListener("mousemove", function (e) {
     if (!dragState) return;
@@ -1893,8 +2016,22 @@
       dragState.el.style.transform =
         "translate(" + tx.toFixed(2) + "vw, " + ty.toFixed(2) + "vh)" + (dragState.restTransform ? " " + dragState.restTransform : "");
     } else if (dragState.type === "move") {
-      dragState.el.style.left = dragState.startLeft + dxPct + "%";
-      dragState.el.style.top = dragState.startTop + dyPct + "%";
+      var newLeft = dragState.startLeft + dxPct;
+      var newTop = dragState.startTop + dyPct;
+      var vLine = null;
+      var hLine = null;
+      // Alt를 누른 채 드래그하면 스냅 없이 자유롭게 놓을 수 있다.
+      if (dragState.snap && !e.altKey) {
+        var sx = applySnap(newLeft, dragState.elWPct, dragState.snap.xs);
+        var sy = applySnap(newTop, dragState.elHPct, dragState.snap.ys);
+        newLeft = sx.value;
+        newTop = sy.value;
+        vLine = sx.line;
+        hLine = sy.line;
+      }
+      dragState.el.style.left = newLeft + "%";
+      dragState.el.style.top = newTop + "%";
+      updateSnapGuides(vLine, hLine);
     } else {
       var newWidth = Math.max(3, dragState.startWidth + dxPct);
       dragState.el.style.width = newWidth + "%";
@@ -1911,7 +2048,10 @@
   window.addEventListener("resize", updatePickIndicator);
 
   document.addEventListener("mouseup", function () {
-    if (dragState) snapshot();
+    if (dragState) {
+      clearSnapGuides();
+      snapshot();
+    }
     dragState = null;
     updateAlignButtons();
   });
@@ -1934,9 +2074,34 @@
     var isFreeEl = active && active.classList && active.classList.contains("free-el");
     var isTextEditing = !!isFreeEl && active.getAttribute("contenteditable") === "true";
 
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "s") {
+      e.preventDefault();
+      save();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && isTextEditing && !e.shiftKey) {
+      // contenteditable의 기본 B/I/U도 대체로 동작하지만, 명시적으로 처리해서
+      // 실행취소 히스토리(commitSoon)에 확실히 기록되게 한다.
+      var fmtKey = e.key.toLowerCase();
+      if (fmtKey === "b" || fmtKey === "i" || fmtKey === "u") {
+        e.preventDefault();
+        document.execCommand(fmtKey === "b" ? "bold" : fmtKey === "i" ? "italic" : "underline");
+        commitSoon();
+        return;
+      }
+    }
     if ((e.ctrlKey || e.metaKey) && !isTextEditing && e.key.toLowerCase() === "d") {
       e.preventDefault();
       duplicateSelected();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && isFreeEl && !isTextEditing && (e.key === "]" || e.key === "[")) {
+      e.preventDefault();
+      if (e.shiftKey) {
+        e.key === "]" ? bringToFront(active) : sendToBack(active);
+      } else {
+        stepZOrder(active, e.key === "]" ? 1 : -1);
+      }
       return;
     }
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === ">" || e.key === "." || e.key === "+" || e.key === "=")) {
@@ -1972,6 +2137,27 @@
       sel.addRange(range);
       return;
     }
+    // 요소 복사/잘라내기/붙여넣기 — PPT처럼 도형 단위로 동작한다.
+    // OS 클립보드는 못 읽으므로 내부 변수에 담아두고, 창을 벗어나면 비워서
+    // (blur 리스너 참고) 다른 앱에서 복사해온 이미지 붙여넣기와 충돌하지 않게 한다.
+    if ((e.ctrlKey || e.metaKey) && !isTextEditing && isFreeEl && (e.key.toLowerCase() === "c" || e.key.toLowerCase() === "x")) {
+      var copyClone = active.cloneNode(true);
+      copyClone.querySelectorAll(".free-el-handle, .free-el-del, .free-el-shield").forEach(function (n) { n.remove(); });
+      freeElClipboard = copyClone.outerHTML;
+      if (e.key.toLowerCase() === "x") {
+        e.preventDefault();
+        if (active === selectedFreeEl) selectFreeEl(null);
+        active.remove();
+        snapshot();
+      }
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && !isTextEditing && freeElClipboard && e.key.toLowerCase() === "v") {
+      e.preventDefault();
+      pasteFreeElFromClipboard();
+      return;
+    }
+
     if (!isFreeEl || isTextEditing) return;
 
     if (e.key === "Delete" || e.key === "Backspace") {

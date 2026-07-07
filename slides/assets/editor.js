@@ -2069,7 +2069,21 @@
   });
 
   document.addEventListener("keydown", function (e) {
-    if (!isEditing()) return;
+    if (!isEditing()) {
+      // 슬라이드(iframe)를 클릭하면 포커스가 이 문서로 넘어와서, 부모 창의
+      // ←/→ 슬라이드 이동 단축키가 전혀 눌리지 않는 문제가 생긴다.
+      // 편집 중이 아닐 때는 네비게이션 키를 부모(index.html)로 전달한다.
+      var t = e.target;
+      var typing = t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
+      var navKeys = ["ArrowRight", "ArrowLeft", "PageDown", "PageUp", "F5", "Escape", " ", "Enter"];
+      if (!typing && navKeys.indexOf(e.key) !== -1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (e.key === "F5" || e.key === " ") e.preventDefault(); // 새로고침/스크롤 방지
+        try {
+          window.parent.postMessage({ type: "cursor-editor:nav-key", key: e.key }, "*");
+        } catch (err) {}
+      }
+      return;
+    }
     var active = document.activeElement;
     var isFreeEl = active && active.classList && active.classList.contains("free-el");
     var isTextEditing = !!isFreeEl && active.getAttribute("contenteditable") === "true";

@@ -448,44 +448,36 @@
         "title": "C. 밸런싱·데이터 — 질문"
       },
       {
+        "file": "deck/slide-mrawyju13.html",
+        "title": "C. 밸런싱·데이터 — 질문 복사본"
+      },
+      {
         "file": "deck/cluster-d-q.html",
         "title": "D. 프로토타입·배치 — 질문"
       },
       {
-        "file": "deck/cluster-d-a.html",
-        "title": "D. 프로토타입·배치 — 답변"
+        "file": "deck/slide-mrax7boub.html",
+        "title": "D. 프로토타입·배치 — 질문 복사본"
       },
       {
         "file": "deck/cluster-e-q.html",
         "title": "E. 모델·창의성 — 질문"
       },
       {
-        "file": "deck/cluster-e-a.html",
-        "title": "E. 모델·창의성 — 답변"
+        "file": "deck/slide-mraxjl55b.html",
+        "title": "E. 모델·창의성 — 질문 복사본"
       },
       {
         "file": "deck/cluster-f-q.html",
         "title": "F. 세계관·품질검증 — 질문"
       },
       {
-        "file": "deck/cluster-f-a.html",
-        "title": "F. 세계관·품질검증 — 답변"
-      },
-      {
         "file": "deck/cluster-g-q.html",
         "title": "G. Before/After·사람의 역할 — 질문"
       },
       {
-        "file": "deck/cluster-g-a.html",
-        "title": "G. Before/After·사람의 역할 — 답변"
-      },
-      {
         "file": "deck/cluster-h-q.html",
         "title": "H. 조직·법률·거버넌스 — 질문"
-      },
-      {
-        "file": "deck/cluster-h-a.html",
-        "title": "H. 조직·법률·거버넌스 — 답변"
       }
     ]
   },
@@ -512,6 +504,10 @@
       {
         "file": "deck/slide-mr9fkrkml.html",
         "title": "프로세스를 좀 더 파괴적으로 생각해야 되지 않나 싶음"
+      },
+      {
+        "file": "deck/slide-mray0ao4d.html",
+        "title": "새 슬라이드"
       }
     ]
   }

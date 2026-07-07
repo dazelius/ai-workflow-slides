@@ -952,7 +952,7 @@
       else if (cmd === "del-selected") { var s3 = getSelectedFreeEl(); if (s3) { selectFreeEl(null); s3.remove(); snapshot(); } }
       else if (cmd === "undo") undo();
       else if (cmd === "redo") redo();
-      else if (cmd === "save") save(wrap);
+      else if (cmd === "save") save();
       else if (btn.hasAttribute("data-color")) applyColor(btn.getAttribute("data-color"));
       else if (btn.hasAttribute("data-style-clear")) clearStyleProp(btn.getAttribute("data-style-clear"));
       else if (btn.hasAttribute("data-bg")) {
@@ -1320,6 +1320,33 @@
     return max + 1;
   }
 
+  // base64 이미지를 HTML에 그대로 두면 슬라이드 파일이 수 MB로 커지므로,
+  // 서버가 있으면 실제 파일(assets/img/)로 올려 보내고 src를 경로로 바꿔치기한다.
+  // 서버가 없으면(정적 호스팅) 조용히 실패하고 기존처럼 base64로 남는다.
+  function persistFreeImage(img) {
+    var src = img.getAttribute("src") || "";
+    var m = src.match(/^data:(image\/(?:png|jpeg|jpg|gif|webp));base64,(.+)$/);
+    if (!m) return;
+    fetch("/api/save-image", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mime: m[1], b64: m[2] }),
+    })
+      .then(function (r) {
+        var ct = r.headers.get("content-type") || "";
+        if (!r.ok || ct.indexOf("application/json") !== 0) throw new Error("no-backend");
+        return r.json();
+      })
+      .then(function (d) {
+        if (d.ok && d.url) {
+          // 슬라이드 파일은 deck/ 안에 있으므로 한 단계 위로 올라간 상대 경로를 쓴다
+          img.src = "../" + d.url;
+          commitSoon();
+        }
+      })
+      .catch(function () {});
+  }
+
   function addFreeImage(dataUrl) {
     var root = getRoot();
     if (!root) return;
@@ -1338,6 +1365,7 @@
     enhanceFreeEls();
     wrap.focus();
     snapshot();
+    persistFreeImage(img);
   }
 
   function insertImage() {
@@ -2075,7 +2103,7 @@
       // 편집 중이 아닐 때는 네비게이션 키를 부모(index.html)로 전달한다.
       var t = e.target;
       var typing = t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
-      var navKeys = ["ArrowRight", "ArrowLeft", "PageDown", "PageUp", "F5", "Escape", " ", "Enter"];
+      var navKeys = ["ArrowRight", "ArrowLeft", "PageDown", "PageUp", "F5", "Escape", " ", "Enter", "n", "N"];
       if (!typing && navKeys.indexOf(e.key) !== -1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
         if (e.key === "F5" || e.key === " ") e.preventDefault(); // 새로고침/스크롤 방지
         try {
@@ -2225,6 +2253,12 @@
     if (history.length > 60) history.shift();
     historyIndex = history.length - 1;
     updateHistoryButtons();
+    // 첫 스냅샷(편집 모드 진입 직후의 원본)은 변경이 아니다. 그 뒤부터는 실제
+    // 편집이므로 자동 저장을 예약해서, 저장을 깜빡해도 내용이 날아가지 않게 한다.
+    if (history.length > 1) {
+      dirtySinceSave = true;
+      scheduleAutosave();
+    }
   }
 
   function commitSoon() {
@@ -2313,8 +2347,20 @@
     showLocalDraftBar(Date.now());
   }
 
-  function save(wrap) {
-    setStatus("저장 중…");
+  // 자동 저장 — 마지막 편집 후 잠깐 쉬면 조용히 저장해서, 저장을 깜빡한 채
+  // 창을 닫거나 다른 슬라이드로 넘어가도 내용이 유실되지 않게 한다.
+  var dirtySinceSave = false;
+  var autosaveTimer = null;
+  function scheduleAutosave() {
+    clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(function () {
+      if (editModeOn && dirtySinceSave) save({ auto: true });
+    }, 4000);
+  }
+
+  function save(opts) {
+    var auto = !!(opts && opts.auto === true);
+    if (!auto) setStatus("저장 중…");
     var html = buildSaveHtml();
 
     fetch("/api/save", {
@@ -2332,18 +2378,38 @@
       })
       .then(function (data) {
         if (data.ok) {
+          dirtySinceSave = false;
           clearLocalDraft();
           var bar = document.getElementById(LOCAL_DRAFT_BAR_ID);
           if (bar) bar.remove();
-          setStatus("저장됨 · " + new Date().toLocaleTimeString());
+          setStatus((auto ? "자동 저장됨 · " : "저장됨 · ") + new Date().toLocaleTimeString());
         } else {
           setStatus("저장 실패: " + data.error);
         }
       })
       .catch(function () {
-        saveLocally(html);
+        if (auto) {
+          // 자동 저장에서는 파일 다운로드까지 튀어나오면 방해되므로, 로컬
+          // 드래프트만 조용히 남긴다(수동 저장은 기존처럼 다운로드 폴백).
+          dirtySinceSave = false;
+          saveLocalDraft(html);
+          setStatus("서버 없음 → 이 브라우저에 자동 임시 저장됨 · " + new Date().toLocaleTimeString());
+        } else {
+          dirtySinceSave = false;
+          saveLocally(html);
+        }
       });
   }
+
+  // 창을 닫거나 다른 슬라이드로 넘어가는 순간에 아직 저장 안 된 편집이 있으면,
+  // 물어보는 대신 로컬 드래프트로 즉시(동기) 남겨서 유실을 막는다 — 다음에 이
+  // 슬라이드를 열면 restoreLocalDraftIfAny가 그대로 복원해준다.
+  window.addEventListener("beforeunload", function () {
+    if (!dirtySinceSave) return;
+    try {
+      saveLocalDraft(buildSaveHtml());
+    } catch (e) {}
+  });
 
   /* ------------------------------------------------------------------ */
   /* 편집 모드 on/off                                                     */

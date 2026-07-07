@@ -239,6 +239,44 @@
     transition:width .25s ease;
   }
 
+  /* 발표자 노트 — 평소엔 슬라이드 아래 입력 바(접을 수 있음), 슬라이드쇼 중엔
+     좌하단 타이머 칩 + N 키로 여닫는 노트 오버레이(청중 화면엔 방해 안 되게 반투명). */
+  .notes-bar { flex:none; border-top:1px solid var(--line); background:var(--panel); display:flex; flex-direction:column; }
+  .notes-toggle {
+    align-self:flex-start; background:transparent; border:none; color:var(--muted);
+    font-family:inherit; font-size:11.5px; font-weight:700; padding:7px 20px 5px; cursor:pointer;
+  }
+  .notes-toggle:hover { color:var(--text); }
+  .notes-toggle .notes-hint { font-weight:400; opacity:.6; margin-left:6px; }
+  .notes-bar textarea {
+    height:64px; resize:none; margin:0 20px 10px; padding:8px 10px;
+    background:#101116; border:1px solid var(--line); border-radius:8px; outline:none;
+    color:var(--text); font-family:inherit; font-size:12.5px; line-height:1.5;
+  }
+  .notes-bar textarea:focus { border-color:var(--accent); }
+  .notes-bar.is-collapsed textarea { display:none; }
+  body.presenting .notes-bar { display:none; }
+  .present-notes {
+    display:none; position:fixed; left:14px; bottom:14px; z-index:21; max-width:min(480px, 44vw);
+    align-items:center; gap:8px; flex-wrap:wrap;
+    opacity:0; transition:opacity .15s;
+  }
+  body.presenting .present-notes { display:flex; }
+  /* 마우스를 움직이면(종료 버튼이 보일 때) 타이머도 함께 살짝 보여준다 */
+  body.presenting .present-exit.show ~ .present-notes { opacity:1; }
+  .pn-timer {
+    background:rgba(20,22,29,0.7); border:1px solid rgba(255,255,255,0.12); border-radius:999px;
+    color:#dfe1e6; font-size:12px; font-weight:700; font-variant-numeric:tabular-nums; padding:5px 11px;
+  }
+  .pn-hint { font-size:10.5px; color:rgba(255,255,255,0.45); }
+  .present-notes .pn-text {
+    display:none; flex-basis:100%; background:rgba(14,15,19,0.88); border:1px solid rgba(255,255,255,0.12);
+    border-radius:10px; color:#e8eaee; font-size:13.5px; line-height:1.6; padding:10px 13px;
+    max-height:32vh; overflow-y:auto; white-space:pre-wrap;
+  }
+  .present-notes.is-open { opacity:1; }
+  .present-notes.is-open .pn-text { display:block; }
+
   /* ------------------------------------------------------------------ */
   /* AI 에이전트 패널 — 전체 덱을 검토/생성/수정하는 도구-호출 에이전트.       */
   /* 슬라이드를 넘나들며 작업해야 해서 iframe 안이 아니라 이 부모 화면에      */
@@ -281,6 +319,13 @@
   .agent-msg.user { align-self:flex-end; background:var(--accent); color:#1a0e0a; font-weight:600; }
   .agent-msg.assistant { align-self:flex-start; background:#20222a; color:#eceded; border:1px solid var(--line); white-space:normal; }
   .agent-msg.error { align-self:stretch; background:#2a1a1a; color:#ffb4a3; border:1px solid #4a2a24; }
+  .agent-msg.agent-retry { align-self:flex-start; background:transparent; padding:0; }
+  .agent-retry-btn {
+    background:transparent; border:1px solid var(--line); border-radius:8px;
+    color:var(--text); font-family:inherit; font-size:12px; font-weight:700;
+    padding:6px 12px; cursor:pointer;
+  }
+  .agent-retry-btn:hover { border-color:var(--accent); color:var(--accent); }
   /* 어시스턴트 말풍선 안 마크다운 렌더링 */
   .agent-msg.assistant p { margin:0 0 7px; }
   .agent-msg.assistant p:last-child, .agent-msg.assistant ul:last-child, .agent-msg.assistant ol:last-child { margin-bottom:0; }
@@ -484,6 +529,15 @@
       </div>
       <button class="present-exit" id="presentExit" title="슬라이드쇼 종료 (Esc)">✕</button>
       <div class="present-progress" id="presentProgress"><i></i></div>
+      <div class="present-notes" id="presentNotes">
+        <span class="pn-timer" id="pnTimer">00:00</span>
+        <span class="pn-hint">N 노트</span>
+        <div class="pn-text" id="pnText"></div>
+      </div>
+    </div>
+    <div class="notes-bar" id="notesBar">
+      <button type="button" class="notes-toggle" id="notesToggle" title="접기/펼치기">▾ 발표자 노트 <span class="notes-hint">발표 중 N 키로 확인</span></button>
+      <textarea id="notesInput" placeholder="이 슬라이드에서 말할 내용을 메모해두세요 — 슬라이드쇼 중 N 키로 볼 수 있어요" spellcheck="false"></textarea>
     </div>
   </main>
 
@@ -563,6 +617,8 @@
 
   let DECKS = [];
   let activeDeckIdx = 0;
+  // 발표(덱)별로 마지막에 보던 슬라이드 위치를 기억한다.
+  const LAST_SLIDE_PREFIX = "cursorEditorLastSlide:";
 
   function activeDeck() {
     return DECKS[activeDeckIdx] || { id: "main", title: "발표", subtitle: "", manifest: "assets/deck.json" };
@@ -638,7 +694,20 @@
         render();
         // 이 발표에서 나눴던 에이전트 대화가 있으면 복원한다.
         try { switchAgentChatToActiveDeck(); } catch (e) {}
-        go(0);
+        // 시작 위치: (첫 로드에 한해) URL 해시 #번호가 있으면 그 슬라이드로,
+        // 없으면 이 발표에서 마지막으로 보던 슬라이드로 복귀한다.
+        let target = null;
+        if (opts && opts.initial) {
+          const m = (window.location.hash || "").match(/^#(\d+)$/);
+          if (m) target = parseInt(m[1], 10) - 1;
+        }
+        if (target === null) {
+          try {
+            const saved = localStorage.getItem(LAST_SLIDE_PREFIX + activeDeck().id);
+            if (saved !== null) target = parseInt(saved, 10);
+          } catch (e) {}
+        }
+        go(Number.isInteger(target) && target >= 0 ? target : 0);
       })
       .catch(() => {
         DECK = [];
@@ -823,6 +892,7 @@
     const req = el.requestFullscreen || el.webkitRequestFullscreen;
     if (req) req.call(el).catch(() => {});
     showExitBtn();
+    startPresentTimer();
   }
 
   function exitPresent() {
@@ -835,6 +905,7 @@
     }
     clearTimeout(hideExitTimer);
     presentExit.classList.remove("show");
+    stopPresentTimer();
   }
 
   function togglePresent() {
@@ -854,6 +925,71 @@
   document.addEventListener("mousemove", () => {
     if (presenting) showExitBtn();
   });
+
+  /* ------------------------------------------------------------------ */
+  /* 발표자 노트 + 발표 타이머                                              */
+  /* 노트는 매니페스트의 슬라이드 항목(notes)에 저장되어 서버/로컬 드래프트로   */
+  /* 함께 영속된다. 슬라이드쇼 중에는 좌하단 타이머 칩, N 키로 노트 표시.      */
+  /* ------------------------------------------------------------------ */
+
+  const notesBar = document.getElementById("notesBar");
+  const notesInput = document.getElementById("notesInput");
+  const presentNotes = document.getElementById("presentNotes");
+  const pnTimer = document.getElementById("pnTimer");
+  const pnText = document.getElementById("pnText");
+  const NOTES_COLLAPSED_KEY = "cursorEditorNotesCollapsed";
+
+  try {
+    if (localStorage.getItem(NOTES_COLLAPSED_KEY) === "1") notesBar.classList.add("is-collapsed");
+  } catch (e) {}
+  document.getElementById("notesToggle").addEventListener("click", () => {
+    const collapsed = notesBar.classList.toggle("is-collapsed");
+    try { localStorage.setItem(NOTES_COLLAPSED_KEY, collapsed ? "1" : "0"); } catch (e) {}
+  });
+
+  // FLAT 항목은 DECK의 복사본이라, 노트는 반드시 원본(DECK) 항목에 써야
+  // persistOrder가 매니페스트에 함께 저장한다.
+  function setSlideNotes(flatIdx, text) {
+    const item = FLAT[flatIdx];
+    if (!item) return;
+    item.notes = text;
+    const pos = findDeckPosition(item.file);
+    if (pos) DECK[pos.groupIdx].items[pos.itemIdx].notes = text;
+  }
+  let notesSaveTimer = null;
+  notesInput.addEventListener("input", () => {
+    setSlideNotes(current, notesInput.value);
+    syncNotesUi(); // 발표 오버레이(pnText)도 즉시 같은 내용으로
+    clearTimeout(notesSaveTimer);
+    notesSaveTimer = setTimeout(persistOrder, 1200);
+  });
+  notesInput.addEventListener("keydown", (e) => e.stopPropagation());
+
+  function syncNotesUi() {
+    const notes = (FLAT[current] && FLAT[current].notes) || "";
+    if (document.activeElement !== notesInput) notesInput.value = notes;
+    pnText.textContent = notes || "(이 슬라이드에는 노트가 없습니다)";
+  }
+
+  let presentTimerId = null;
+  let presentStartedAt = 0;
+  function updatePresentTimer() {
+    const sec = Math.floor((Date.now() - presentStartedAt) / 1000);
+    const mm = String(Math.floor(sec / 60)).padStart(2, "0");
+    const ss = String(sec % 60).padStart(2, "0");
+    pnTimer.textContent = mm + ":" + ss;
+  }
+  function startPresentTimer() {
+    presentStartedAt = Date.now();
+    updatePresentTimer();
+    clearInterval(presentTimerId);
+    presentTimerId = setInterval(updatePresentTimer, 1000);
+  }
+  function stopPresentTimer() {
+    clearInterval(presentTimerId);
+    presentTimerId = null;
+    presentNotes.classList.remove("is-open");
+  }
 
   function render() {
     thumbList.innerHTML = "";
@@ -1408,6 +1544,11 @@
     }
     counter.textContent = `${current + 1} / ${FLAT.length}`;
     titleNow.textContent = FLAT[current].title;
+    syncNotesUi();
+    // 지금 위치를 URL 해시(#번호)와 localStorage에 남긴다 — 새로고침해도 보던
+    // 슬라이드로 돌아오고, 링크를 복사하면 특정 슬라이드를 바로 공유할 수 있다.
+    try { history.replaceState(null, "", "#" + (current + 1)); } catch (e) {}
+    try { localStorage.setItem(LAST_SLIDE_PREFIX + activeDeck().id, String(current)); } catch (e) {}
     // 이동한 슬라이드가 접혀 있는 섹션 안에 있으면 펼쳐야 목록에서 보이므로,
     // 그때만 예외적으로 목록 전체를 다시 그린다.
     const activeAct = FLAT[current] && FLAT[current].act;
@@ -1550,6 +1691,7 @@
     else if ((key === " " || key === "Enter") && presenting) go(current + 1);
     else if (key === "F5") togglePresent();
     else if (key === "Escape" && presenting) exitPresent();
+    else if ((key === "n" || key === "N") && presenting) presentNotes.classList.toggle("is-open");
   }
   window.addEventListener("keydown", (e) => {
     // 채팅창/검색창/이름변경 입력 중에는 화살표가 슬라이드 이동으로 새면 안 된다
@@ -1557,6 +1699,14 @@
     if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
     if (e.key === "F5" || (presenting && (e.key === " " || e.key === "Enter"))) e.preventDefault();
     handleNavKey(e.key);
+  });
+
+  // 주소창의 #번호를 직접 고치거나 뒤로가기로 해시가 바뀐 경우에도 따라간다.
+  window.addEventListener("hashchange", () => {
+    const m = (window.location.hash || "").match(/^#(\d+)$/);
+    if (!m) return;
+    const idx = parseInt(m[1], 10) - 1;
+    if (idx !== current) go(idx);
   });
 
   /* ------------------------------------------------------------------ */
@@ -1688,6 +1838,7 @@
 - "전체 슬라이드 검토해줘"류 요청에는 list_slides → read_slides(all:true)로 실제 내용을 다 읽고, 문제(중복되는 내용, 톤 불일치, 방치된 TODO 등)를 구체적으로 짚어 자연어로 보고하세요. 사용자가 명확히 고쳐달라고 하지 않았다면 함부로 슬라이드를 고치지 마세요.
 - 되돌릴 수 없는 작업(delete_slide)은 사용자가 명확히 삭제를 요청했을 때만 하세요.
 - write_slide/create_slide/delete_slide/add_image/add_app은 실행 즉시 반영되지 않습니다 — 사용자에게 변경 전/후 미리보기가 뜨고, 사용자가 직접 수락하거나 취소합니다. 그러니 "정말 진행할까요?"처럼 채팅으로 되묻지 말고 바로 도구를 호출하세요(최종 승인은 화면에서 사용자가 합니다). 도구 결과에 "사용자가 거부함"이라고 나오면 그 변경은 적용되지 않은 것이니 다음 계획에 반영하세요.
+- rename_slide/duplicate_slide/move_slide/set_theme는 미리보기 없이 즉시 적용됩니다. set_theme은 발표 전체의 분위기를 바꾸므로 사용자가 명확히 테마 변경을 원할 때만 쓰세요.
 - 모든 도구 호출이 끝나면 마지막에 무엇을 했는지 한국어로 간단히 요약해서 답하세요 — 도구 호출 없이 텍스트로만 답하면 그게 최종 답변이고, 그 순간 실행이 끝난 것으로 간주됩니다. 거부된 변경이 있었다면 요약에도 그 사실을 알려주세요.
 - 슬라이드 인덱스는 0부터 시작합니다. list_slides/read_slides가 알려준 인덱스를 그대로 쓰세요.`;
 
@@ -1767,6 +1918,38 @@
         type: "object",
         properties: { index: { type: "integer" }, prompt: { type: "string", description: "무엇을 만들지에 대한 지시(예: 팩맨, 카운터, 계산기 등)" } },
         required: ["index", "prompt"],
+      },
+    },
+    {
+      name: "rename_slide",
+      description: "슬라이드의 사이드바 제목을 바꾼다(슬라이드 본문 내용은 건드리지 않음).",
+      input_schema: {
+        type: "object",
+        properties: {
+          index: { type: "integer", description: "제목을 바꿀 슬라이드의 0부터 시작하는 인덱스" },
+          title: { type: "string", description: "새 제목" },
+        },
+        required: ["index", "title"],
+      },
+    },
+    {
+      name: "duplicate_slide",
+      description: "슬라이드 한 장을 그대로 복제해서 원본 바로 뒤에 넣는다. 비슷한 레이아웃의 슬라이드를 여러 장 만들 때 create_slide보다 빠르고 안전하다.",
+      input_schema: {
+        type: "object",
+        properties: { index: { type: "integer", description: "복제할 슬라이드의 0부터 시작하는 인덱스" } },
+        required: ["index"],
+      },
+    },
+    {
+      name: "set_theme",
+      description: "발표 전체의 테마(슬라이드 마스터: 배경/텍스트/포인트 색)를 프리셋으로 바꾼다. 모든 슬라이드에 즉시 적용된다.",
+      input_schema: {
+        type: "object",
+        properties: {
+          preset: { type: "string", description: "테마 프리셋 키. dark(다크 기본) / light(화이트) / navy(네이비) / warm(웜 베이지) / mono(모노 그레이) 중 하나" },
+        },
+        required: ["preset"],
       },
     },
   ];
@@ -2348,6 +2531,27 @@
     return { result: `슬라이드를 ${newIdx}번 위치로 옮겼습니다.` };
   }
 
+  // base64 이미지를 HTML에 그대로 두면 슬라이드 파일이 수 MB로 커지므로,
+  // 서버가 있으면 실제 파일(assets/img/)로 저장하고 슬라이드 기준 상대 경로를
+  // 돌려준다. 서버가 없으면 base64 그대로(기존 동작) 쓴다.
+  async function persistImageAsFile(dataUrl) {
+    const m = String(dataUrl || "").match(/^data:(image\/(?:png|jpeg|jpg|gif|webp));base64,(.+)$/);
+    if (!m) return dataUrl;
+    try {
+      const r = await fetch("/api/save-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mime: m[1], b64: m[2] }),
+      });
+      const ct = r.headers.get("content-type") || "";
+      if (!r.ok || ct.indexOf("application/json") !== 0) throw new Error("no-backend");
+      const d = await r.json();
+      // 슬라이드 파일은 deck/ 안에 있으므로 한 단계 위 상대 경로로 참조한다
+      if (d.ok && d.url) return "../" + d.url;
+    } catch (e) {}
+    return dataUrl;
+  }
+
   async function toolAddImage(input, card) {
     const index = input && input.index;
     if (!Number.isInteger(index) || !FLAT[index]) return { error: "잘못된 슬라이드 인덱스입니다" };
@@ -2361,11 +2565,12 @@
         if (card) setStepCardImage(card, dataUrl, evt.phase === "done");
       });
       if (!dataUrl) throw new Error("이미지를 받지 못했습니다");
+      const storedSrc = await persistImageAsFile(dataUrl);
       const raw = await fetchSlideRawHtml(file);
       const doc = new DOMParser().parseFromString(raw, "text/html");
       const root = doc.querySelector(".slide");
       const beforeHtml = root.outerHTML;
-      appendFreeElImage(root, dataUrl);
+      appendFreeElImage(root, storedSrc);
       const approved = card ? await showDiffReview(card, { before: beforeHtml, after: root.outerHTML }) : true;
       if (!approved) return { result: `슬라이드 ${index}번 이미지 추가가 취소되었습니다(사용자가 거부함) — 적용되지 않았습니다.`, rejected: true };
       (slideImageMemory[index] = slideImageMemory[index] || []).push(dataUrl);
@@ -2406,7 +2611,81 @@
     }
   }
 
-  const TOOL_ICONS = { list_slides: "📋", read_slides: "🔎", write_slide: "✏️", create_slide: "➕", delete_slide: "🗑", move_slide: "↕️", add_image: "🖼", add_app: "🧩" };
+  async function toolRenameSlide(input) {
+    const index = input && input.index;
+    const title = ((input && input.title) || "").trim();
+    if (!Number.isInteger(index) || !FLAT[index]) return { error: "잘못된 슬라이드 인덱스입니다" };
+    if (!title) return { error: "새 제목이 비어 있습니다" };
+    const item = FLAT[index];
+    const pos = findDeckPosition(item.file);
+    if (!pos) return { error: "슬라이드를 찾을 수 없습니다" };
+    const oldTitle = item.title;
+    DECK[pos.groupIdx].items[pos.itemIdx].title = title;
+    rebuildFlat();
+    render();
+    persistOrder();
+    if (current === index) titleNow.textContent = title;
+    return { result: `슬라이드 ${index}번 제목을 "${oldTitle}" → "${title}"로 바꿨습니다.` };
+  }
+
+  async function toolDuplicateSlide(input) {
+    const index = input && input.index;
+    if (!Number.isInteger(index) || !FLAT[index]) return { error: "잘못된 슬라이드 인덱스입니다" };
+    const item = FLAT[index];
+    const pos = findDeckPosition(item.file);
+    if (!pos) return { error: "슬라이드를 찾을 수 없습니다" };
+    try {
+      const raw = await fetchSlideRawHtml(item.file);
+      const file = uniqueSlideFile();
+      const created = await createSlideFile(file, raw);
+      const newItem = { file, title: item.title + " 복사본" };
+      if (item.todo) newItem.todo = true;
+      if (!created.backend) newItem.virtual = true;
+      DECK[pos.groupIdx].items.splice(pos.itemIdx + 1, 0, newItem);
+      rebuildFlat();
+      render();
+      persistOrder();
+      const newIdx = FLAT.findIndex((it) => it.file === file);
+      return { result: `슬라이드 ${index}번("${item.title}")을 복제해 ${newIdx}번 위치에 넣었습니다.` };
+    } catch (e) {
+      return { error: (e && e.message) || String(e) };
+    }
+  }
+
+  // editor.js의 THEME_PRESETS와 반드시 같은 값을 유지해야 하는 사본 —
+  // 에이전트가 발표 전체 테마(슬라이드 마스터)를 즉시 바꿀 때 쓴다.
+  const AGENT_THEME_PRESETS = {
+    dark: { name: "다크 (기본)", bg: "#0c0d10", bgPanel: "#16171b", text: "#f2f3f5", muted: "#999da5", muted2: "#6b6e75", accent: "#ff6b4a", line: "#26282e", font: "default" },
+    light: { name: "화이트", bg: "#f7f7f5", bgPanel: "#ffffff", text: "#1c1d21", muted: "#6b6e75", muted2: "#9a9da5", accent: "#e05a3a", line: "#e2e2e0", font: "default" },
+    navy: { name: "네이비", bg: "#0b1526", bgPanel: "#111f36", text: "#f2f4f8", muted: "#93a1bd", muted2: "#5b6a86", accent: "#4fa8ff", line: "#1d2c47", font: "default" },
+    warm: { name: "웜/베이지", bg: "#181410", bgPanel: "#231d16", text: "#f6efe6", muted: "#c2ab8e", muted2: "#8a7863", accent: "#e8a33d", line: "#332a20", font: "default" },
+    mono: { name: "모노 그레이", bg: "#111214", bgPanel: "#1a1b1e", text: "#eceded", muted: "#9a9da5", muted2: "#63656b", accent: "#eceded", line: "#2c2e33", font: "default" },
+  };
+
+  async function toolSetTheme(input) {
+    const key = ((input && input.preset) || "").trim();
+    const preset = AGENT_THEME_PRESETS[key];
+    if (!preset) return { error: "알 수 없는 테마 프리셋입니다: " + key + " (dark/light/navy/warm/mono 중 하나)" };
+    try {
+      const r = await fetch("/api/save-theme", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vars: preset }),
+      });
+      const ct = r.headers.get("content-type") || "";
+      if (!r.ok || ct.indexOf("application/json") !== 0) throw new Error("no-backend");
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.error || "테마 저장 실패");
+      go(current); // 새 styles.css를 반영해 현재 슬라이드를 다시 그린다
+      return { result: `발표 전체 테마를 "${preset.name}"(${key})로 바꿨습니다. 모든 슬라이드에 적용됩니다.` };
+    } catch (e) {
+      const msg = (e && e.message) || String(e);
+      if (msg === "no-backend") return { error: "테마 변경은 로컬 서버(node server.js)가 있어야 저장됩니다 — 지금 환경에서는 적용할 수 없습니다." };
+      return { error: msg };
+    }
+  }
+
+  const TOOL_ICONS = { list_slides: "📋", read_slides: "🔎", write_slide: "✏️", create_slide: "➕", delete_slide: "🗑", move_slide: "↕️", add_image: "🖼", add_app: "🧩", rename_slide: "🏷", duplicate_slide: "⧉", set_theme: "🎨" };
   const TOOL_LABELS = {
     list_slides: () => "슬라이드 목록 확인",
     read_slides: (input) => (input && input.all ? "전체 슬라이드 검토" : "슬라이드 검토 (" + ((input && input.indices) || []).join(", ") + ")"),
@@ -2416,6 +2695,9 @@
     move_slide: (input) => `슬라이드 ${input && input.index} 이동`,
     add_image: (input) => `슬라이드 ${input && input.index} · 이미지 생성`,
     add_app: (input) => `슬라이드 ${input && input.index} · 인터랙티브 데모 생성`,
+    rename_slide: (input) => `슬라이드 ${input && input.index} · 제목 변경`,
+    duplicate_slide: (input) => `슬라이드 ${input && input.index} 복제`,
+    set_theme: (input) => "전체 테마 변경 · " + ((input && input.preset) || ""),
   };
   const AGENT_TOOL_IMPLS = {
     list_slides: () => toolListSlides(),
@@ -2426,6 +2708,9 @@
     move_slide: (input) => toolMoveSlide(input),
     add_image: (input, card) => toolAddImage(input, card),
     add_app: (input, card) => toolAddApp(input, card),
+    rename_slide: (input) => toolRenameSlide(input),
+    duplicate_slide: (input) => toolDuplicateSlide(input),
+    set_theme: (input) => toolSetTheme(input),
   };
 
   /* ------------------------------------------------------------------ */
@@ -2612,8 +2897,12 @@
         "</body></html>"
       );
     }
+    // <base>를 deck/ 기준으로 두어야 슬라이드 안의 상대 경로 리소스(예:
+    // ../assets/img/의 이미지)가 실제 슬라이드에서와 똑같이 풀린다.
     return (
-      '<!DOCTYPE html><html><head><meta charset="UTF-8"><link rel="stylesheet" href="assets/styles.css"></head>' +
+      '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
+      '<base href="' + new URL("deck/", window.location.href).href + '">' +
+      '<link rel="stylesheet" href="../assets/styles.css"></head>' +
       "<body>" + slideOuterHtml + "</body></html>"
     );
   }
@@ -2715,7 +3004,8 @@
     agentConversation = saved.conversation;
     agentLog.innerHTML = saved.logHtml || "";
     // 복원된 diff 카드에 승인 버튼이 남아있으면 이미 끝난 턴이므로 제거한다.
-    agentLog.querySelectorAll(".diff-actions").forEach((el) => el.remove());
+    // 재시도 버튼도 복원되면 이벤트가 없는 죽은 버튼이므로 같이 제거한다.
+    agentLog.querySelectorAll(".diff-actions, .agent-retry").forEach((el) => el.remove());
     hideAgentEmptyHint();
     scrollAgentBodyToBottom();
     return true;
@@ -2737,12 +3027,40 @@
     updateAgentContextLine();
   }
 
+  // 대화가 길어지면 옛 턴의 도구 결과(read_slides 결과는 최대 5만 자)가 매 요청마다
+  // 통째로 다시 전송되어 토큰이 폭발한다. 메시지 구조(tool_use/tool_result 짝)는
+  // 그대로 두고, 오래된 턴의 긴 본문만 앞부분 + "생략" 표시로 축약해서 보낸다.
+  // agentConversation 원본(저장/복원용)은 건드리지 않는다.
+  const AGENT_KEEP_RECENT = 12; // 최근 이 개수의 메시지는 원문 그대로 보낸다
+  const AGENT_OLD_BLOCK_CAP = 700;
+  function compactConversationForRequest(conv) {
+    if (conv.length <= AGENT_KEEP_RECENT) return conv;
+    const cutoff = conv.length - AGENT_KEEP_RECENT;
+    const shorten = (s, note) => (s.length > AGENT_OLD_BLOCK_CAP ? s.slice(0, AGENT_OLD_BLOCK_CAP) + " …(" + note + ")" : s);
+    return conv.map((msg, i) => {
+      if (i >= cutoff) return msg;
+      if (typeof msg.content === "string") {
+        return { role: msg.role, content: shorten(msg.content, "이전 대화 일부 생략") };
+      }
+      const content = (msg.content || []).map((b) => {
+        if (b && b.type === "tool_result" && typeof b.content === "string") {
+          return Object.assign({}, b, { content: shorten(b.content, "이전 단계 결과 생략") });
+        }
+        if (b && b.type === "text" && typeof b.text === "string") {
+          return Object.assign({}, b, { text: shorten(b.text, "생략") });
+        }
+        return b;
+      });
+      return { role: msg.role, content };
+    });
+  }
+
   async function runAgentRounds(roundIdx) {
     if (roundIdx >= AGENT_MAX_ROUNDS) {
       appendAgentAssistantBubble("작업이 길어져서 일단 멈췄어요. 이어서 진행하려면 다시 요청해주세요.");
       return;
     }
-    const res = await agentTurnRequest(agentConversation);
+    const res = await agentTurnRequest(compactConversationForRequest(agentConversation));
     if (!res || !res.ok) throw new Error((res && res.error) || "에이전트 응답 실패");
     const content = res.content || [];
     agentConversation.push({ role: "assistant", content });
@@ -2788,6 +3106,38 @@
     }
   }
 
+  // API 일시 오류(네트워크/429 등)로 턴이 실패해도 대화를 잃지 않도록,
+  // 오류 말풍선 옆에 "다시 시도" 버튼을 붙여 마지막 요청만 다시 보낸다.
+  // (도구 실행 오류는 executeAgentTool이 안에서 흡수하므로, 여기 오는 실패는
+  // 항상 마지막 메시지가 user인 상태 — 그대로 다음 턴을 재요청하면 된다.)
+  function appendAgentRetryBubble() {
+    const el = document.createElement("div");
+    el.className = "agent-msg agent-retry";
+    el.innerHTML = '<button type="button" class="agent-retry-btn">↻ 다시 시도</button>';
+    el.querySelector("button").addEventListener("click", () => {
+      el.remove();
+      resumeAgentAfterError();
+    });
+    agentLog.appendChild(el);
+    scrollAgentBodyToBottom();
+  }
+  async function resumeAgentAfterError() {
+    if (agentSendBtn.disabled) return;
+    setAgentBusy(true);
+    const typing = showAgentTyping();
+    try {
+      await runAgentRounds(0);
+    } catch (err) {
+      appendAgentErrorBubble((err && err.message) || String(err));
+      appendAgentRetryBubble();
+    } finally {
+      removeAgentTyping(typing);
+      setAgentBusy(false);
+      saveAgentConversation();
+      agentInput.focus();
+    }
+  }
+
   async function runAgent(presetText) {
     const text = (typeof presetText === "string" ? presetText : agentInput.value).trim();
     if (!text || agentSendBtn.disabled) return;
@@ -2801,6 +3151,7 @@
       await runAgentRounds(0);
     } catch (err) {
       appendAgentErrorBubble((err && err.message) || String(err));
+      appendAgentRetryBubble();
     } finally {
       removeAgentTyping(typing);
       setAgentBusy(false);

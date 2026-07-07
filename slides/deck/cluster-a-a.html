@@ -1,40 +1,62 @@
-﻿<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8" />
+<!DOCTYPE html>
+<html lang="ko"><head>
+<meta charset="UTF-8">
 <title>A. 워크플로우 설계 — 답변</title>
-<link rel="stylesheet" href="../assets/styles.css" />
+<link rel="stylesheet" href="../assets/styles.css">
 </head>
 <body>
-<div class="slide">
-  <div class="kicker alt">답변 · A</div>
-  <p class="title-lg">자동화 워크플로우 설계</p>
-  <div class="col" style="margin-top:2.2vw; gap:1.6vw;">
-    <div class="framework-step">
-      <div class="step-num">1</div>
-      <div class="step-body">
-        <div class="step-title">반복성부터 자동화하라</div>
-        <div class="step-desc">매주 반복되는 작업(파일 정리, 데이터 변환, 리포트 생성)이 자동화 최우선 후보입니다.</div>
+<div class="slide"><div class="kicker">A. 워크플로우 설계 — 답변</div>
+<div class="title-lg">문제는 <span class="accent">LLM이 아니라 TOOL</span>로 풀어라</div>
+
+<div class="center-stage">
+  <div class="col" style="gap:1.4vw;">
+    <div class="body-lg" style="color:#c9c9c9;">
+      매번 프롬프트로 즉석 대응하면, 같은 요청도 그때그때 <span class="hl-box">다른 패턴의 답변</span>이 나올 수 있습니다.
+      해결하려는 문제가 <span style="color:#ff6b4a;">반복되는 문제</span>인지 먼저 판단하세요.
+    </div>
+
+    <div class="card-grid" style="grid-template-columns:repeat(2,1fr); margin-top:1vw;">
+      <div class="card">
+        <div class="card-num">01</div>
+        <div class="card-title">1회성 문제</div>
+        <div class="card-desc">그때그때 LLM과의 대화로 해결 — 유연성이 중요</div>
+      </div>
+      <div class="card marked">
+        <div class="card-num">02</div>
+        <div class="card-title">반복되는 문제</div>
+        <div class="card-desc">규칙을 정하고 TOOL(자동화 스크립트/매크로)로 고정 — 일관성이 중요</div>
       </div>
     </div>
-    <div class="framework-step">
-      <div class="step-num">2</div>
-      <div class="step-body">
-        <div class="step-title">파괴적 작업은 3단계 게이트로</div>
-        <div class="step-desc">미리보기(dry-run) → 승인 → 실행을 스크립트/규칙으로 강제해 되돌릴 수 없는 실수를 원천 차단합니다.</div>
+
+    <div class="col" style="margin-top:1.6vw; gap:1vw;">
+      <div class="framework-step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title">문제를 분해한다</div>
+          <div class="step-desc">이 작업을 몇 번이나 반복하게 될지, 규칙이 명확한지 확인합니다</div>
+        </div>
       </div>
-    </div>
-    <div class="framework-step">
-      <div class="step-num">3</div>
-      <div class="step-body">
-        <div class="step-title">규칙은 말이 아니라 파일로 고정하라</div>
-        <div class="step-desc">CLAUDE.md / 프로젝트별 설정 파일에 명명 규칙·폴더 구조·컨텍스트를 문서화하면 매번 설명할 필요가 없어집니다.</div>
+      <div class="framework-step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title">규칙을 고정한다</div>
+          <div class="step-desc">LLM의 판단이 아니라 코드/도구의 로직으로 처리되게 만듭니다</div>
+        </div>
+      </div>
+      <div class="framework-step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title">LLM은 그 앞뒤에서 돕는다</div>
+          <div class="step-desc">데이터 생성·해석 등 자연어가 필요한 부분에만 활용합니다</div>
+        </div>
       </div>
     </div>
   </div>
-  <div class="page-number" id="page-number"></div>
 </div>
+
+<div class="page-number" id="page-number">90 / 108</div></div>
   <script src="../assets/page-number.js"></script>
   <script src="../assets/editor.js"></script>
-</body>
-</html>
+
+
+</body></html>

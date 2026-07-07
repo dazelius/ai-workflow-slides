@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="ko"><head>
+<meta charset="UTF-8">
+<title>그리고 웹 프로토타이핑도 좋습니다</title>
+<link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+<div class="slide">
+  <div class="kicker"></div>
+  <p class="title-lg">그리고 웹 프로토타이핑도 좋습니다</p>
+  <div class="center-stage">
+  </div>
+  <div class="page-number" id="page-number">74 / 102</div>
+<div class="free-el free-el--app" contenteditable="false" style="position: absolute; left: 21.4335%; top: 22.836%; width: 60%; height: 72%; z-index: 10;"><iframe sandbox="allow-scripts allow-forms allow-pointer-lock allow-popups" frameborder="0" srcdoc="&lt;!DOCTYPE html&gt;
+&lt;html lang=&quot;ko&quot;&gt;
+&lt;head&gt;
+&lt;meta charset=&quot;UTF-8&quot;&gt;
+&lt;title&gt;가챠 확률 노드 그래프 시뮬레이터&lt;/title&gt;
+&lt;style&gt;
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    background: #14161c;
+    color: #e8e8ec;
+    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    overflow: hidden;
+  }
+  #app {
+    width: 100%; height: 100%;
+    display: flex; flex-direction: column;
+    position: relative;
+  }
+  #hint {
+    flex: 0 0 auto;
+    font-size: clamp(10px, 1.4vw, 13px);
+    padding: 6px 10px;
+    background: #1b1e27;
+    border-bottom: 1px solid #2a2e3a;
+    color: #9a9ca8;
+  }
+  #hint b { color: #ff6b4a; }
+
+  #main {
+    flex: 1 1 auto;
+    position: relative;
+    display: flex;
+    min-height: 0;
+  }
+
+  /* 그래프 캔버스 영역 */
+  #graphWrap {
+    flex: 1 1 auto;
+    position: relative;
+    min-width: 0;
+  }
+  svg#wires {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none;
+  }
+  .node {
+    position: absolute;
+    background: #1c1f2a;
+    border: 1px solid #33384a;
+    border-radius: 8px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+    padding: 8px 10px;
+    font-size: clamp(9px, 1.15vw, 12px);
+    user-select: none;
+  }
+  .node .title {
+    font-weight: 700;
+    color: #ff6b4a;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border-bottom: 1px solid #2a2e3a;
+    padding-bottom: 4px;
+  }
+  .node .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #ff6b4a;
+    box-shadow: 0 0 6px #ff6b4a;
+  }
+  .row { display:flex; justify-content: space-between; gap: 8px; margin-top:3px; color:#c7c9d4;}
+  .row span.val { color:#fff; font-weight:600; }
+
+  /* 슬라이더 노드 */
+  .sliderNode input[type=range] {
+    width: 100%;
+    accent-color: #ff6b4a;
+  }
+
+  /* 확률 바 노드 */
+  #barNode { width: 230px; }
+  .bar-item { margin: 5px 0; }
+  .bar-label { display:flex; justify-content:space-between; font-size:11px; margin-bottom:2px;}
+  .bar-bg { background:#2a2e3a; border-radius:4px; height:10px; overflow:hidden; }
+  .bar-fill { height:100%; border-radius:4px; transition: width .2s; }
+
+  /* 우측 결과 패널 */
+  #resultPanel {
+    flex: 0 0 260px;
+    max-width: 40%;
+    background: #191c24;
+    border-left: 1px solid #2a2e3a;
+    display: flex; flex-direction: column;
+    padding: 10px;
+    overflow: hidden;
+  }
+  #resultPanel h3 {
+    margin: 0 0 8px 0;
+    font-size: clamp(11px,1.6vw,14px);
+    color: #ff6b4a;
+  }
+  #pullBtn {
+    background: linear-gradient(135deg, #ff6b4a, #ff8f6a);
+    border: none;
+    color: #1a1a1a;
+    font-weight: 800;
+    padding: 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: clamp(11px,1.6vw,14px);
+    margin-bottom: 8px;
+    flex: 0 0 auto;
+    transition: transform .1s;
+  }
+  #pullBtn:active { transform: scale(0.96); }
+
+  #resultLog {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    font-size: clamp(9px,1.3vw,11px);
+    background: #14161c;
+    border-radius: 6px;
+    padding: 6px;
+    border: 1px solid #2a2e3a;
+  }
+  .logline { padding: 3px 4px; border-bottom: 1px dashed #262a34; display:flex; justify-content:space-between;}
+  .logline.SSR { color: #ffd24a; font-weight:700; }
+  .logline.SR { color: #c67bff; }
+  .logline.R { color: #6bb7ff; }
+
+  #stats {
+    flex: 0 0 auto;
+    margin-top: 8px;
+    font-size: clamp(9px,1.3vw,11px);
+    background:#14161c;
+    border: 1px solid #2a2e3a;
+    border-radius: 6px;
+    padding: 6px;
+  }
+  #stats .row span.val { font-weight:700; }
+
+  #pityFlash {
+    position:absolute;
+    top:8px; left:50%; transform:translateX(-50%);
+    background:#ff6b4a; color:#1a1a1a; font-weight:800;
+    padding:4px 10px; border-radius: 20px;
+    font-size: 12px;
+    opacity:0;
+    pointer-events:none;
+    transition: opacity .3s, top .3s;
+  }
+  #pityFlash.show { opacity:1; top:20px; }
+&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;div id=&quot;app&quot;&gt;
+  &lt;div id=&quot;hint&quot;&gt;🖱 슬라이더로 각 등급 &lt;b&gt;기본 확률/천장 카운트&lt;/b&gt; 조절, &lt;b&gt;PULL 버튼&lt;/b&gt;으로 뽑기 시뮬레이션 — 노드 그래프가 실시간 계산 흐름을 보여줍니다&lt;/div&gt;
+  &lt;div id=&quot;main&quot;&gt;
+    &lt;div id=&quot;graphWrap&quot;&gt;
+      &lt;svg id=&quot;wires&quot;&gt;&lt;/svg&gt;
+
+      &lt;!-- 노드: 기본 확률 입력 --&gt;
+      &lt;div class=&quot;node sliderNode&quot; id=&quot;nodeBase&quot; style=&quot;left:2%; top:5%; width:220px;&quot;&gt;
+        &lt;div class=&quot;title&quot;&gt;&lt;span class=&quot;dot&quot;&gt;&lt;/span&gt;Base Rate&lt;/div&gt;
+        &lt;div class=&quot;row&quot;&gt;&lt;span&gt;SSR&lt;/span&gt;&lt;span class=&quot;val&quot; id=&quot;valSSR&quot;&gt;0.60%&lt;/span&gt;&lt;/div&gt;
+        &lt;input type=&quot;range&quot; id=&quot;sldSSR&quot; min=&quot;0.1&quot; max=&quot;5&quot; step=&quot;0.1&quot; value=&quot;0.6&quot;&gt;
+        &lt;div class=&quot;row&quot;&gt;&lt;span&gt;SR&lt;/span&gt;&lt;span class=&quot;val&quot; id=&quot;valSR&quot;&gt;5.00%&lt;/span&gt;&lt;/div&gt;
+        &lt;input type=&quot;range&quot; id=&quot;sldSR&quot; min=&quot;1&quot; max=&quot;20&quot; step=&quot;0.5&quot; value=&quot;5&quot;&gt;
+        &lt;div class=&quot;row&quot;&gt;&lt;span&gt;R (나머지)&lt;/span&gt;&lt;span class=&quot;val&quot; id=&quot;valR&quot;&gt;94.40%&lt;/span&gt;&lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;!-- 노드: 천장 시스템 --&gt;
+      &lt;div class=&quot;node sliderNode&quot; id=&quot;nodePity&quot; style=&quot;left:2%; top:44%; width:220px;&quot;&gt;
+        &lt;div class=&quot;title&quot;&gt;&lt;span class=&quot;dot&quot;&gt;&lt;/span&gt;Pity System&lt;/div&gt;
+        &lt;div class=&quot;row&quot;&gt;&lt;span&gt;천장 카운트&lt;/span&gt;&lt;span class=&quot;val&quot; id=&quot;valPity&quot;&gt;90&lt;/span&gt;&lt;/div&gt;
+        &lt;input type=&quot;range&quot; id=&quot;sldPity&quot; min=&quot;10&quot; max=&quot;200&quot; step=&quot;1&quot; value=&quot;90&quot;&gt;
+        &lt;div class=&quot;row&quot;&gt;&lt;span&gt;소프트 시작&lt;/span&gt;&lt;span class=&quot;val&quot; id=&quot;valSoft&quot;&gt;75&lt;/span&gt;&lt;/div&gt;
+        &lt;input type=&quot;range&quot; id=&quot;sldSoft&quot; min=&quot;5&quot; max=&quot;190&quot; step=&quot;1&quot; value=&quot;75&quot;&gt;
+      &lt;/div&gt;
+
+      &lt;!-- 노드: 현재 상태 --&gt;
+      &lt;div class=&quot;node&quot; id=&quot;nodeState&quot; style=&quot;left:2%; top:80%; width:220px;&quot;&gt;
+        &lt;div class=&quot;title&quot;&gt;&lt;span class=&quot;dot&quot;&gt;&lt;/span&gt;Current State&lt;/div&gt;
+        &lt;div class=&quot;row&quot;&gt;&lt;span&gt;현재 뽑기 수(천장내)&lt;/span&gt;&lt;span class=&quot;val&quot; id=&quot;valCount&quot;&gt;0&lt;/span&gt;&lt;/div&gt;
+        &lt;div class=&quot;row&quot;&gt;&lt;span&gt;보정 배율&lt;/span&gt;&lt;span class=&quot;val&quot; id=&quot;valBoost&quot;&gt;x1.00&lt;/span&gt;&lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;!-- 노드: 확률 계산기 --&gt;
+      &lt;div class=&quot;node&quot; id=&quot;nodeCalc&quot; style=&quot;left:38%; top:12%; width:210px;&quot;&gt;
+        &lt;div class=&quot;title&quot;&gt;&lt;span class=&quot;dot&quot;&gt;&lt;/span&gt;Rate Calculator&lt;/div&gt;
+        &lt;div class=&quot;row&quot;&gt;&lt;span&gt;SSR 최종&lt;/span&gt;&lt;span class=&quot;val&quot; id=&quot;calcSSR&quot;&gt;0.60%&lt;/span&gt;&lt;/div&gt;
+        &lt;div class=&quot;row&quot;&gt;&lt;span&gt;SR 최종&lt;/span&gt;&lt;span class=&quot;val&quot; id=&quot;calcSR&quot;&gt;5.00%&lt;/span&gt;&lt;/div&gt;
+        &lt;div class=&quot;row&quot;&gt;&lt;span&gt;R 최종&lt;/span&gt;&lt;span class=&quot;val&quot; id=&quot;calcR&quot;&gt;94.40%&lt;/span&gt;&lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;!-- 노드: 난수 생성기 --&gt;
+      &lt;div class=&quot;node&quot; id=&quot;nodeRng&quot; style=&quot;left:38%; top:44%; width:210px;&quot;&gt;
+        &lt;div class=&quot;title&quot;&gt;&lt;span class=&quot;dot&quot;&gt;&lt;/span&gt;RNG Roll (0~1)&lt;/div&gt;
+        &lt;div class=&quot;row&quot;&gt;&lt;span&gt;생성된 값&lt;/span&gt;&lt;span class=&quot;val&quot; id=&quot;rngVal&quot;&gt;-&lt;/span&gt;&lt;/div&gt;
+        &lt;div class=&quot;row&quot;&gt;&lt;span&gt;판정 구간&lt;/span&gt;&lt;span class=&quot;val&quot; id=&quot;rngZone&quot;&gt;-&lt;/span&gt;&lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;!-- 노드: 확률 분포 바 --&gt;
+      &lt;div class=&quot;node&quot; id=&quot;barNode&quot; style=&quot;left:38%; top:66%;&quot;&gt;
+        &lt;div class=&quot;title&quot;&gt;&lt;span class=&quot;dot&quot;&gt;&lt;/span&gt;Distribution&lt;/div&gt;
+        &lt;div class=&quot;bar-item&quot;&gt;
+          &lt;div class=&quot;bar-label&quot;&gt;&lt;span&gt;SSR&lt;/span&gt;&lt;span id=&quot;barSSRlabel&quot;&gt;0.60%&lt;/span&gt;&lt;/div&gt;
+          &lt;div class=&quot;bar-bg&quot;&gt;&lt;div class=&quot;bar-fill&quot; id=&quot;barSSR&quot; style=&quot;background:#ffd24a; width:0.6%;&quot;&gt;&lt;/div&gt;&lt;/div&gt;
+        &lt;/div&gt;
+        &lt;div class=&quot;bar-item&quot;&gt;
+          &lt;div class=&quot;bar-label&quot;&gt;&lt;span&gt;SR&lt;/span&gt;&lt;span id=&quot;barSRlabel&quot;&gt;5.00%&lt;/span&gt;&lt;/div&gt;
+          &lt;div class=&quot;bar-bg&quot;&gt;&lt;div class=&quot;bar-fill&quot; id=&quot;barSR&quot; style=&quot;background:#c67bff; width:5%;&quot;&gt;&lt;/div&gt;&lt;/div&gt;
+        &lt;/div&gt;
+        &lt;div class=&quot;bar-item&quot;&gt;
+          &lt;div class=&quot;bar-label&quot;&gt;&lt;span&gt;R&lt;/span&gt;&lt;span id=&quot;barRlabel&quot;&gt;94.4%&lt;/span&gt;&lt;/div&gt;
+          &lt;div class=&quot;bar-bg&quot;&gt;&lt;div class=&quot;bar-fill&quot; id=&quot;barR&quot; style=&quot;background:#6bb7ff; width:94.4%;&quot;&gt;&lt;/div&gt;&lt;/div&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;!-- 노드: 결과 출력 --&gt;
+      &lt;div class=&quot;node&quot; id=&quot;nodeOutput&quot; style=&quot;left:75%; top:38%; width:180px;&quot;&gt;
+        &lt;div class=&quot;title&quot;&gt;&lt;span class=&quot;dot&quot;&gt;&lt;/span&gt;Output&lt;/div&gt;
+        &lt;div class=&quot;row&quot;&gt;&lt;span&gt;등급&lt;/span&gt;&lt;span class=&quot;val&quot; id=&quot;outGrade&quot;&gt;-&lt;/span&gt;&lt;/div&gt;
+        &lt;div class=&quot;row&quot;&gt;&lt;span&gt;천장발동&lt;/span&gt;&lt;span class=&quot;val&quot; id=&quot;outPity&quot;&gt;-&lt;/span&gt;&lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;div id=&quot;pityFlash&quot;&gt;🎯 천장 발동!&lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;div id=&quot;resultPanel&quot;&gt;
+      &lt;h3&gt;가챠 시뮬레이터&lt;/h3&gt;
+      &lt;button id=&quot;pullBtn&quot;&gt;1회 뽑기 (Space)&lt;/button&gt;
+      &lt;div id=&quot;resultLog&quot;&gt;&lt;/div&gt;
+      &lt;div id=&quot;stats&quot;&gt;
+        &lt;div class=&quot;row&quot;&gt;&lt;span&gt;총 뽑기&lt;/span&gt;&lt;span class=&quot;val&quot; id=&quot;statTotal&quot;&gt;0&lt;/span&gt;&lt;/div&gt;
+        &lt;div class=&quot;row&quot;&gt;&lt;span&gt;SSR 획득&lt;/span&gt;&lt;span class=&quot;val&quot; id=&quot;statSSR&quot;&gt;0&lt;/span&gt;&lt;/div&gt;
+        &lt;div class=&quot;row&quot;&gt;&lt;span&gt;실측 SSR%&lt;/span&gt;&lt;span class=&quot;val&quot; id=&quot;statSSRp&quot;&gt;0.00%&lt;/span&gt;&lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+&lt;/div&gt;
+
+&lt;script&gt;
+(function(){
+  const sldSSR = document.getElementById('sldSSR');
+  const sldSR = document.getElementById('sldSR');
+  const sldPity = document.getElementById('sldPity');
+  const sldSoft = document.getElementById('sldSoft');
+
+  const valSSR = document.getElementById('valSSR');
+  const valSR = document.getElementById('valSR');
+  const valR = document.getElementById('valR');
+  const valPity = document.getElementById('valPity');
+  const valSoft = document.getElementById('valSoft');
+  const valCount = document.getElementById('valCount');
+  const valBoost = document.getElementById('valBoost');
+
+  const calcSSR = document.getElementById('calcSSR');
+  const calcSR = document.getElementById('calcSR');
+  const calcR = document.getElementById('calcR');
+
+  const rngVal = document.getElementById('rngVal');
+  const rngZone = document.getElementById('rngZone');
+
+  const barSSR = document.getElementById('barSSR');
+  const barSR = document.getElementById('barSR');
+  const barR = document.getElementById('barR');
+  const barSSRlabel = document.getElementById('barSSRlabel');
+  const barSRlabel = document.getElementById('barSRlabel');
+  const barRlabel = document.getElementById('barRlabel');
+
+  const outGrade = document.getElementById('outGrade');
+  const outPity = document.getElementById('outPity');
+  const pullBtn = document.getElementById('pullBtn');
+  const resultLog = document.getElementById('resultLog');
+  const statTotal = document.getElementById('statTotal');
+  const statSSR = document.getElementById('statSSR');
+  const statSSRp = document.getElementById('statSSRp');
+  const pityFlash = document.getElementById('pityFlash');
+
+  let pityCount = 0;
+  let totalPulls = 0;
+  let ssrCount = 0;
+
+  function baseRates(){
+    let ssr = parseFloat(sldSSR.value);
+    let sr = parseFloat(sldSR.value);
+    if (ssr + sr &gt; 100) sr = 100 - ssr;
+    let r = 100 - ssr - sr;
+    return {ssr, sr, r};
+  }
+
+  function updateBaseDisplay(){
+    const {ssr, sr, r} = baseRates();
+    valSSR.textContent = ssr.toFixed(2) + '%';
+    valSR.textContent = sr.toFixed(2) + '%';
+    valR.textContent = r.toFixed(2) + '%';
+  }
+
+  function boostMultiplier(){
+    const pityMax = parseInt(sldPity.value);
+    const softStart = parseInt(sldSoft.value);
+    if (pityCount &lt; softStart) return 1;
+    // 소프트 천장 구간에서 선형으로 증가, 마지막엔 매우 큰 배율
+    const range = Math.max(1, pityMax - softStart);
+    const progress = (pityCount - softStart) / range;
+    return 1 + progress * 15; // 최대 16배까지 증가
+  }
+
+  function computeFinalRates(){
+    const {ssr, sr, r} = baseRates();
+    const pityMax = parseInt(sldPity.value);
+    let boost = boostMultiplier();
+    let finalSSR = ssr * boost;
+
+    // 천장 도달 시 100% 보장
+    if (pityCount &gt;= pityMax - 1) {
+      finalSSR = 100;
+    }
+    if (finalSSR &gt; 100) finalSSR = 100;
+    let finalSR = sr;
+    let finalR = 100 - finalSSR - finalSR;
+    if (finalR &lt; 0) { finalR = 0; finalSR = Math.max(0, 100-finalSSR); }
+    return {finalSSR, finalSR, finalR, boost};
+  }
+
+  function updateCalcDisplay(){
+    const {finalSSR, finalSR, finalR, boost} = computeFinalRates();
+    calcSSR.textContent = finalSSR.toFixed(2)+'%';
+    calcSR.textContent = finalSR.toFixed(2)+'%';
+    calcR.textContent = finalR.toFixed(2)+'%';
+
+    barSSR.style.width = finalSSR + '%';
+    barSR.style.width = finalSR + '%';
+    barR.style.width = finalR + '%';
+    barSSRlabel.textContent = finalSSR.toFixed(2)+'%';
+    barSRlabel.textContent = finalSR.toFixed(2)+'%';
+    barRlabel.textContent = finalR.toFixed(2)+'%';
+
+    valBoost.textContent = 'x' + boost.toFixed(2);
+    valCount.textContent = pityCount;
+    valPity.textContent = sldPity.value;
+    valSoft.textContent = sldSoft.value;
+  }
+
+  function doPull(){
+    const pityMax = parseInt(sldPity.value);
+    const {finalSSR, finalSR, finalR} = computeFinalRates();
+    const roll = Math.random() * 100;
+    rngVal.textContent = (roll/100).toFixed(4);
+
+    let grade, isPity = false;
+    if (pityCount &gt;= pityMax - 1) {
+      grade = 'SSR';
+      isPity = true;
+      rngZone.textContent = '천장 강제 SSR';
+    } else if (roll &lt; finalSSR) {
+      grade = 'SSR';
+      rngZone.textContent = '0 ~ ' + finalSSR.toFixed(2) + ' → SSR';
+    } else if (roll &lt; finalSSR + finalSR) {
+      grade = 'SR';
+      rngZone.textContent = finalSSR.toFixed(2) + ' ~ ' + (finalSSR+finalSR).toFixed(2) + ' → SR';
+    } else {
+      grade = 'R';
+      rngZone.textContent = (finalSSR+finalSR).toFixed(2) + ' ~ 100 → R';
+    }
+
+    if (grade === 'SSR') {
+      pityCount = 0;
+      ssrCount++;
+    } else {
+      pityCount++;
+    }
+    totalPulls++;
+
+    outGrade.textContent = grade;
+    outPity.textContent = isPity ? 'YES' : 'NO';
+
+    if (isPity){
+      pityFlash.classList.add('show');
+      setTimeout(()=&gt;pityFlash.classList.remove('show'), 900);
+    }
+
+    const line = document.createElement('div');
+    line.className = 'logline ' + grade;
+    line.innerHTML = '&lt;span&gt;#' + totalPulls + '&lt;/span&gt;&lt;span&gt;' + grade + (isPity? ' (천장)':'') + '&lt;/span&gt;';
+    resultLog.insertBefore(line, resultLog.firstChild);
+    while (resultLog.childNodes.length &gt; 60) resultLog.removeChild(resultLog.lastChild);
+
+    statTotal.textContent = totalPulls;
+    statSSR.textContent = ssrCount;
+    statSSRp.textContent = (totalPulls&gt;0 ? (ssrCount/totalPulls*100).toFixed(2) : '0.00') + '%';
+
+    updateCalcDisplay();
+    animateWires();
+  }
+
+  // ---- 노드 연결선 (SVG) ----
+  const svg = document.getElementById('wires');
+  const graphWrap = document.getElementById('graphWrap');
+
+  function getCenter(el, side){
+    const wrapRect = graphWrap.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    const x = side === 'right' ? (r.right - wrapRect.left) : (r.left - wrapRect.left);
+    const y = (r.top + r.bottom)/2 - wrapRect.top;
+    return {x, y};
+  }
+
+  function makePath(p1, p2){
+    const dx = Math.max(40, Math.abs(p2.x - p1.x) * 0.5);
+    return `M ${p1.x} ${p1.y} C ${p1.x+dx} ${p1.y}, ${p2.x-dx} ${p2.y}, ${p2.x} ${p2.y}`;
+  }
+
+  let wirePaths = [];
+
+  function buildWires(){
+    svg.innerHTML = '';
+    wirePaths = [];
+    const connections = [
+      [document.getElementById('nodeBase'), document.getElementById('nodeCalc')],
+      [document.getElementById('nodePity'), document.getElementById('nodeCalc')],
+      [document.getElementById('nodeState'), document.getElementById('nodeCalc')],
+      [document.getElementById('nodeCalc'), document.getElementById('nodeRng')],
+      [document.getElementById('nodeCalc'), document.getElementById('barNode')],
+      [document.getElementById('nodeRng'), document.getElementById('nodeOutput')],
+      [document.getElementById('barNode'), document.getElementById('nodeOutput')],
+    ];
+    connections.forEach(([a,b])=&gt;{
+      const p1 = getCenter(a, 'right');
+      const p2 = getCenter(b, 'left');
+      const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+      path.setAttribute('d', makePath(p1,p2));
+      path.setAttribute('stroke', '#4a4f63');
+      path.setAttribute('stroke-width', '2');
+      path.setAttribute('fill', 'none');
+      svg.appendChild(path);
+      wirePaths.push(path);
+
+      const circle1 = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      circle1.setAttribute('cx', p1.x); circle1.setAttribute('cy', p1.y); circle1.setAttribute('r', 4);
+      circle1.setAttribute('fill', '#ff6b4a');
+      svg.appendChild(circle1);
+      const circle2 = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      circle2.setAttribute('cx', p2.x); circle2.setAttribute('cy', p2.y); circle2.setAttribute('r', 4);
+      circle2.setAttribute('fill', '#ff6b4a');
+      svg.appendChild(circle2);
+    });
+  }
+
+  function animateWires(){
+    wirePaths.forEach((p, i)=&gt;{
+      p.setAttribute('stroke', '#ff6b4a');
+      p.setAttribute('stroke-width', '3');
+      setTimeout(()=&gt;{
+        p.setAttribute('stroke', '#4a4f63');
+        p.setAttribute('stroke-width', '2');
+      }, 350);
+    });
+  }
+
+  // 이벤트 바인딩
+  [sldSSR, sldSR, sldPity, sldSoft].forEach(s=&gt;{
+    s.addEventListener('input', ()=&gt;{
+      updateBaseDisplay();
+      updateCalcDisplay();
+    });
+  });
+
+  pullBtn.addEventListener('click', doPull);
+  window.addEventListener('keydown', (e)=&gt;{
+    if (e.code === 'Space'){
+      e.preventDefault();
+      doPull();
+    }
+  });
+
+  window.addEventListener('resize', buildWires);
+
+  // 초기화
+  updateBaseDisplay();
+  updateCalcDisplay();
+  setTimeout(buildWires, 50);
+  setTimeout(buildWires, 300);
+})();
+&lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;"></iframe></div></div>
+  <script src="../assets/page-number.js"></script>
+  <script src="../assets/editor.js"></script>
+
+
+</body></html>

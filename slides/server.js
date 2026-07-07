@@ -8,6 +8,32 @@ const path = require("path");
 const ROOT = __dirname;
 const PORT = 5500;
 
+// "슬라이드 마스터" 테마 저장에서 쓰는 색상 변수 키 <-> assets/styles.css의
+// CSS 커스텀 프로퍼티 이름 매핑. 클라이언트(editor.js)의 THEME_CSS_VAR와 반드시
+// 짝이 맞아야 한다.
+const THEME_CSS_VAR = {
+  bg: "--bg",
+  bgPanel: "--bg-panel",
+  text: "--text",
+  muted: "--muted",
+  muted2: "--muted-2",
+  accent: "--accent",
+  line: "--line",
+};
+// 글꼴은 임의 문자열을 그대로 CSS에 꽂지 않고(주입 위험), 항상 이 허용 목록의
+// 키 하나만 받아서 실제 font-stack은 서버가 직접 채운다. editor.js의
+// THEME_FONT_STACKS와 반드시 같은 값을 유지해야 한다.
+const THEME_FONT_STACKS = {
+  default: "'Pretendard','Apple SD Gothic Neo','Malgun Gothic',-apple-system,BlinkMacSystemFont,sans-serif",
+  gothic: "'Malgun Gothic','Apple SD Gothic Neo',sans-serif",
+  dotum: "'Dotum','돋움',sans-serif",
+  batang: "'Batang','바탕',serif",
+  gungseo: "'Gungsuh','궁서',serif",
+};
+function isHexColor(v) {
+  return typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v);
+}
+
 // .env 파일 로딩 (외부 dotenv 패키지 없이 직접 파싱).
 // API 키는 항상 서버(이 프로세스)에서만 사용하고, 브라우저로는 절대 내려보내지 않는다.
 function loadEnvFile(filePath) {
@@ -94,36 +120,132 @@ const AI_APP_SYSTEM_PROMPT = `당신은 발표 슬라이드 위에 바로 삽입
 [미리 생성된 이미지 리소스 재사용 — 사용 가능하다고 안내받았을 때만]
 - 사용자 요청 끝에 "사용 가능한 이미지: {{IMAGE_1}}, ..." 같은 안내가 있으면, 그 이미지들을 캐릭터/스프라이트/배경/아이콘 등으로 데모 안에서 실제로 활용하세요.
 - 이미지가 필요한 자리에는 반드시 안내받은 플레이스홀더 문자열을 정확히 그대로(예: <img src="{{IMAGE_1}}"> 또는 CSS의 background-image:url({{IMAGE_1}}))만 쓰세요. 실제 base64 데이터나 다른 URL을 절대 지어내지 마세요 — 그 문자열은 나중에 실제 이미지로 자동 치환됩니다.
-- 그런 안내가 없으면 이미지 없이 도형/색/텍스트만으로 구현하세요.`;
+- 그런 안내가 없으면 이미지 없이 도형/색/텍스트만으로 구현하세요.
 
-// "AI 챗봇" 도구는 버튼을 3개로 나누지 않고 자연어 요청 하나만 받는다. 문제는
-// "내용을 정리해주고 이미지로도 보충해줘"처럼 한 요청 안에 여러 작업이 섞여
-// 있는 경우가 많다는 것 — 그래서 단일 action이 아니라 순서가 있는 단계
-// (steps) 목록으로 쪼개서 돌려준다. 이미지 단계는 사용자의 (보통 모호한)
-// 문장을 그대로 이미지 프롬프트로 쓰지 않고, 지금 슬라이드 내용을 참고해서
-// 실제로 그릴 수 있는 구체적인 장면 묘사(detail)를 미리 만들어준다.
-const AI_ROUTE_SYSTEM_PROMPT = `당신은 발표 슬라이드 편집기의 AI 챗봇이 받은 한국어 요청 하나를 분석해서, 실행할 작업 단계로 쪼개는 플래너입니다.
-지금 슬라이드의 현재 내용(innerHTML)과 사용자의 요청을 함께 드립니다. 설명 없이 JSON 객체 하나만 출력하세요.
+[기존 데모 수정 — "지금 있는 데모의 코드" 섹션이 주어졌을 때만]
+- 사용자가 이미 만들어진 데모를 보면서 후속 요청을 한 것입니다(예: "배경을 파란색으로", "속도를 더 빠르게", "점수판도 보여줘"). 처음부터 새로 만드는 게 아니라, 주어진 기존 코드를 기반으로 요청한 부분만 자연스럽게 고치고 나머지 구조/로직/스타일은 최대한 그대로 유지하세요.
+- 그래도 출력은 항상 완전한 HTML 문서 하나(수정된 전체 버전)여야 합니다. diff나 일부분만 출력하지 마세요.`;
 
-출력 형식: {"steps":[{"action":"text"|"image"|"app","detail":"..."}]}
+// "AI 챗봇"은 이제 한 슬라이드짜리 단발 분류기가 아니라, 전체 덱을 스스로
+// 검토하고 여러 슬라이드를 만들고/고치고/정리할 수 있는 도구-호출(tool use)
+// 에이전트다. 실제 도구 실행(슬라이드 읽기/쓰기/생성/삭제/이동/이미지·앱 생성)은
+// 전부 브라우저(index.html) 쪽에서 일어나고, 서버는 "다음에 뭘 할지" 한 턴을
+// 판단해주는 역할만 한다 — 그래서 이 프롬프트/도구 스키마는 index.html의
+// 다이렉트 모드 사본과 반드시 같은 내용을 유지해야 한다.
+const AI_AGENT_SYSTEM_PROMPT = `당신은 발표 슬라이드 편집기에 내장된 자율 에이전트입니다. 사용자와 대화하면서, 필요하면 실제로 도구를 호출해 전체 발표 덱(여러 슬라이드)을 검토하고 만들고 고칠 수 있습니다.
 
-- 요청에 필요한 작업만큼 1~2개의 step을 순서대로 담으세요. 대부분은 1개면 충분합니다.
-- "text": 슬라이드의 글/제목/구성/레이아웃을 작성하거나 고치는 단계. 애매하거나 판단이 안 서면 이 하나만 쓰세요(기본값). detail은 빈 문자열로 두세요.
-- "image": 정적인 이미지 한 장을 그리는 단계. detail에는 사용자의 문장을 그대로 옮기지 말고, 지금 슬라이드 내용과 요청을 참고해서 실제로 그림을 그릴 수 있을 만큼 구체적인 장면/구성/스타일을 직접 묘사하세요. (예: "오렌지색 포인트 컬러의 미니멀한 3단계 플로우차트 아이콘, 어두운 배경, 문서→AI→결과물의 자동화 흐름을 표현")
-- "app": 게임/카운터/계산기/타이머처럼 실제로 클릭·키보드 조작이 가능한 인터랙티브 데모를 만드는 단계 (예: 팩맨, 퐁, 틱택토, 스네이크). detail은 빈 문자열로 두세요.
-- 사용자가 "내용도 정리하고 이미지도 보충해줘"처럼 텍스트와 이미지를 함께 원하면 steps에 text와 image를 순서대로 모두 넣으세요.
-- 사용자가 "캐릭터를 그려서 그걸로 게임을 만들어줘"처럼 그림을 인터랙티브 데모 안의 리소스(캐릭터/스프라이트/배경 등)로 쓰고 싶어하면, image를 먼저, app을 그 다음에 순서대로 넣으세요 — 방금 그린 이미지가 app 단계에 자동으로 전달되어 그 안에서 재사용됩니다. 사용자가 "아까/방금 그린 이미지로 ~게임 만들어줘"처럼 이미 이미지가 있다고 말하면 image 단계 없이 app 하나만 넣어도 됩니다(직전에 만든 이미지가 자동으로 재사용됩니다).
+[동작 방식]
+- 확실히 답할 수 있는 질문/잡담이면 도구를 쓰지 않고 바로 자연어로 답하세요.
+- 실행이 필요하면(검토/작성/생성/정리 등) 알맞은 도구를 호출하세요. 한 턴에 여러 도구를 부를 수도 있고, 결과를 본 뒤 이어서 다른 도구를 부를 수도 있습니다 — 몇 단계가 필요한지 스스로 판단해서 끝까지 진행하세요.
+- "OO 주제로 N장짜리 발표 만들어줘" 같은 요청을 받으면: 먼저 list_slides로 지금 상태를 보고, 필요하면 read_slides로 기존 내용을 확인한 뒤, create_slide를 필요한 만큼 반복 호출해서 실제로 슬라이드를 만드세요. "정말 만들까요?"처럼 되묻지 말고 바로 실행하세요 — 사용자가 이미 실행을 요청한 것입니다.
+- "전체 슬라이드 검토해줘"류 요청에는 list_slides → read_slides(all:true)로 실제 내용을 다 읽고, 문제(중복되는 내용, 톤 불일치, 방치된 TODO 등)를 구체적으로 짚어 자연어로 보고하세요. 사용자가 명확히 고쳐달라고 하지 않았다면 함부로 슬라이드를 고치지 마세요.
+- 되돌릴 수 없는 작업(delete_slide)은 사용자가 명확히 삭제를 요청했을 때만 하세요.
+- 모든 도구 호출이 끝나면 마지막에 무엇을 했는지 한국어로 간단히 요약해서 답하세요 — 도구 호출 없이 텍스트로만 답하면 그게 최종 답변이고, 그 순간 실행이 끝난 것으로 간주됩니다.
+- 슬라이드 인덱스는 0부터 시작합니다. list_slides/read_slides가 알려준 인덱스를 그대로 쓰세요.`;
 
-반드시 위 형식의 JSON 객체 하나만 출력하세요.`;
+// 서버(callAnthropicOnce)와 index.html의 다이렉트 모드가 똑같이 사용하는 도구
+// 스키마. 실제 실행은 전부 브라우저에서 이뤄지므로(서버는 어떤 도구가 있는지만
+// 알면 됨) input_schema는 Anthropic tool use 규격 그대로다.
+const AGENT_TOOLS = [
+  {
+    name: "list_slides",
+    description: "전체 발표 덱의 슬라이드 목록(순서, 섹션, 제목, TODO 표시 여부)을 가져온다. 다른 작업 전에 전체 구성을 파악할 때 사용한다.",
+    input_schema: { type: "object", properties: {} },
+  },
+  {
+    name: "read_slides",
+    description: "지정한 슬라이드들의 실제 텍스트 내용을 읽는다(이미지/앱 등 첨부 리소스는 제외하고 글 내용만). 전체 검토나 특정 슬라이드의 현재 내용 확인에 사용한다.",
+    input_schema: {
+      type: "object",
+      properties: {
+        indices: { type: "array", items: { type: "integer" }, description: "0부터 시작하는 슬라이드 인덱스 목록" },
+        all: { type: "boolean", description: "true면 전체 슬라이드를 읽는다(이때 indices는 무시됨)" },
+      },
+    },
+  },
+  {
+    name: "write_slide",
+    description: "지정한 슬라이드 한 장의 본문(글/제목/레이아웃)을 다시 쓰거나 고친다. 사용자가 직접 배치한 이미지/도형/영상/데모는 항상 그대로 유지된다.",
+    input_schema: {
+      type: "object",
+      properties: {
+        index: { type: "integer", description: "고칠 슬라이드의 0부터 시작하는 인덱스" },
+        instruction: { type: "string", description: "이 슬라이드에 무엇을 어떻게 쓸지에 대한 구체적인 지시" },
+      },
+      required: ["index", "instruction"],
+    },
+  },
+  {
+    name: "create_slide",
+    description: "새 슬라이드를 만든다. instruction을 함께 주면 만들자마자 그 내용으로 채워진다.",
+    input_schema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "슬라이드 제목(사이드바에 표시됨)" },
+        act: { type: "string", description: "속할 섹션(막) 이름. 기존 섹션과 이름이 같으면 그 섹션에 들어가고, 새 이름이면 새 섹션이 만들어진다." },
+        after_index: { type: "integer", description: "이 인덱스의 슬라이드 바로 뒤에 삽입한다. 생략하면 해당 섹션 맨 끝에 추가된다." },
+        instruction: { type: "string", description: "새 슬라이드에 바로 채워 넣을 내용에 대한 지시. 생략하면 빈 슬라이드만 만든다." },
+      },
+      required: ["title", "act"],
+    },
+  },
+  {
+    name: "delete_slide",
+    description: "슬라이드 한 장을 삭제한다. 되돌릴 수 없으니 사용자가 명확히 요청했을 때만 사용한다.",
+    input_schema: { type: "object", properties: { index: { type: "integer" } }, required: ["index"] },
+  },
+  {
+    name: "move_slide",
+    description: "슬라이드 순서를 옮긴다.",
+    input_schema: {
+      type: "object",
+      properties: {
+        index: { type: "integer", description: "옮길 슬라이드의 현재 인덱스" },
+        to_index: { type: "integer", description: "이동 후 기준으로 도착시킬 목표 인덱스" },
+      },
+      required: ["index", "to_index"],
+    },
+  },
+  {
+    name: "add_image",
+    description: "지정한 슬라이드에 AI로 그린 이미지 한 장을 자유 배치로 추가한다.",
+    input_schema: {
+      type: "object",
+      properties: {
+        index: { type: "integer" },
+        prompt: { type: "string", description: "그릴 장면/구성/스타일에 대한 구체적인 묘사" },
+      },
+      required: ["index", "prompt"],
+    },
+  },
+  {
+    name: "add_app",
+    description: "지정한 슬라이드에 실제로 조작 가능한 인터랙티브 데모/미니게임을 자유 배치로 추가한다.",
+    input_schema: {
+      type: "object",
+      properties: {
+        index: { type: "integer" },
+        prompt: { type: "string", description: "무엇을 만들지에 대한 지시(예: 팩맨, 카운터, 계산기 등)" },
+      },
+      required: ["index", "prompt"],
+    },
+  },
+];
 
 // Anthropic 메시지를 스트리밍(SSE)으로 호출한다. 델타 텍스트가 도착할 때마다
 // onDelta로 즉시 넘겨주므로, 브라우저 쪽에서 "타이핑되듯" 생성 과정을 그대로
 // 보여줄 수 있다. 이벤트 블록은 빈 줄("\n\n")로 구분되고, 그 안의 "data: {...}"
 // 줄만 JSON으로 파싱해서 필요한 델타만 뽑아 쓴다.
-function callAnthropicStream(userText, systemPrompt, maxTokens, onDelta) {
+function callAnthropicStream(messagesOrText, systemPrompt, maxTokens, onDelta) {
   return new Promise((resolve, reject) => {
     const apiKey = ENV.CLAUDE_API_KEY;
     if (!apiKey) return reject(new Error("CLAUDE_API_KEY가 .env에 없습니다"));
+    // 대부분의 호출(text/app 생성 등)은 단발성 지시라 문자열 하나만 넘기면
+    // user 메시지 한 개로 감싸주고, 대화형 라우팅처럼 실제 멀티턴 맥락이
+    // 필요할 때만 {role, content} 배열을 그대로 넘긴다.
+    const messages = Array.isArray(messagesOrText)
+      ? messagesOrText
+      : [{ role: "user", content: messagesOrText }];
     const payload = JSON.stringify({
       model: ENV.CLAUDE_MODEL || "claude-sonnet-5",
       max_tokens: maxTokens || 4096,
@@ -135,7 +257,7 @@ function callAnthropicStream(userText, systemPrompt, maxTokens, onDelta) {
       // 없고 답변 길이 자체가 아슬아슬한 경우가 많아서, 명시적으로 꺼서
       // max_tokens 전부를 실제 결과물에 쓰게 한다.
       thinking: { type: "disabled" },
-      messages: [{ role: "user", content: userText }],
+      messages: messages,
     });
     const options = {
       hostname: "api.anthropic.com",
@@ -193,6 +315,58 @@ function callAnthropicStream(userText, systemPrompt, maxTokens, onDelta) {
         }
       });
       apiRes.on("end", () => resolve(full));
+      apiRes.on("error", reject);
+    });
+    apiReq.on("error", reject);
+    apiReq.write(payload);
+    apiReq.end();
+  });
+}
+
+// 에이전트 도구 호출 루프의 "한 턴"을 위한 비스트리밍 호출. 도구 선택 자체는
+// 사용자에게 타이핑되듯 보여줄 필요가 없는 내부 판단이고, tool_use 블록은
+// 완성된 JSON으로 한 번에 와야 안전하게 파싱할 수 있어서 스트리밍을 쓰지
+// 않는다(실제 슬라이드 본문/이미지/앱 생성처럼 오래 걸리는 부분은 각 도구
+// 실행기 안에서 기존 callAnthropicStream을 그대로 재사용해 계속 스트리밍된다).
+function callAnthropicOnce(messages, systemPrompt, tools, maxTokens) {
+  return new Promise((resolve, reject) => {
+    const apiKey = ENV.CLAUDE_API_KEY;
+    if (!apiKey) return reject(new Error("CLAUDE_API_KEY가 .env에 없습니다"));
+    const payload = JSON.stringify({
+      model: ENV.CLAUDE_MODEL || "claude-sonnet-5",
+      max_tokens: maxTokens || 2048,
+      system: systemPrompt,
+      thinking: { type: "disabled" },
+      tools: tools,
+      messages: messages,
+    });
+    const options = {
+      hostname: "api.anthropic.com",
+      path: "/v1/messages",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "Content-Length": Buffer.byteLength(payload),
+      },
+    };
+    const apiReq = https.request(options, (apiRes) => {
+      let body = "";
+      apiRes.setEncoding("utf8");
+      apiRes.on("data", (chunk) => (body += chunk));
+      apiRes.on("end", () => {
+        let json;
+        try {
+          json = JSON.parse(body);
+        } catch (e) {
+          return reject(new Error("Anthropic 응답 파싱 실패"));
+        }
+        if (apiRes.statusCode !== 200) {
+          return reject(new Error((json.error && json.error.message) || "Anthropic API 오류 " + apiRes.statusCode));
+        }
+        resolve(json);
+      });
       apiRes.on("error", reject);
     });
     apiReq.on("error", reject);
@@ -399,7 +573,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  if (req.method === "POST" && url === "/api/ai/route") {
+  if (req.method === "POST" && url === "/api/ai/agent-turn") {
     let rbody = "";
     req.on("data", (chunk) => (rbody += chunk));
     req.on("end", () => {
@@ -411,45 +585,29 @@ const server = http.createServer((req, res) => {
           "Content-Type": "application/json; charset=utf-8",
         });
       }
-      const prompt = parsed.prompt;
-      if (!prompt || typeof prompt !== "string") {
-        return send(res, 400, JSON.stringify({ ok: false, error: "prompt가 필요합니다" }), {
+      // 도구 호출 루프의 messages는 단순 문자열이 아니라 Anthropic 메시지 형식
+      // 그대로(문자열 또는 tool_use/tool_result 블록 배열)라서, role만 최소
+      // 검증하고 content는 그대로 전달한다. 실제 슬라이드/맥락 주입, 히스토리
+      // 길이 관리는 index.html(브라우저) 쪽에서 이미 끝내고 보낸다.
+      const messages = (Array.isArray(parsed.messages) ? parsed.messages : []).filter(
+        (m) => m && (m.role === "user" || m.role === "assistant") && m.content != null
+      );
+      if (!messages.length) {
+        return send(res, 400, JSON.stringify({ ok: false, error: "messages가 필요합니다" }), {
           "Content-Type": "application/json; charset=utf-8",
         });
       }
-      // 슬라이드 현재 내용을 같이 줘야, "이미지로 보충해줘"처럼 모호한 요청에도
-      // 실제로 무엇에 대한 이미지인지 구체적으로 판단해서 detail을 만들 수 있다.
-      const html = capHtmlContext(parsed.html || "");
-      const deckContextText = formatDeckContext(parsed.deckContext);
-      const userText =
-        (deckContextText ? deckContextText + "\n\n" : "") +
-        "현재 슬라이드 내용(innerHTML):\n---\n" + html + "\n---\n\n사용자 요청: " + prompt;
-      // 분류는 스트리밍이 필요 없으니, 델타를 그냥 버리고 전체 텍스트만 받는다.
-      callAnthropicStream(userText, AI_ROUTE_SYSTEM_PROMPT, 500, () => {})
-        .then((raw) => {
-          let steps = [{ action: "text", detail: "" }];
-          try {
-            const start = raw.indexOf("{");
-            const end = raw.lastIndexOf("}");
-            const jsonStr = start !== -1 && end > start ? raw.slice(start, end + 1) : raw;
-            const json = JSON.parse(jsonStr);
-            if (Array.isArray(json.steps) && json.steps.length) {
-              const cleaned = json.steps
-                .filter((s) => s && (s.action === "text" || s.action === "image" || s.action === "app"))
-                .map((s) => ({ action: s.action, detail: typeof s.detail === "string" ? s.detail : "" }))
-                .slice(0, 3);
-              if (cleaned.length) steps = cleaned;
-            }
-          } catch (e) {
-            // 계획 응답 파싱에 실패하면 가장 무난한 기본값(text 한 단계)을 쓴다
-          }
-          console.log("AI 챗봇 플랜:", steps.map((s) => s.action).join(" -> "));
-          send(res, 200, JSON.stringify({ ok: true, steps: steps }), {
+      callAnthropicOnce(messages, AI_AGENT_SYSTEM_PROMPT, AGENT_TOOLS, 2048)
+        .then((data) => {
+          const content = Array.isArray(data.content) ? data.content : [];
+          const toolNames = content.filter((b) => b.type === "tool_use").map((b) => b.name);
+          console.log("AI 에이전트 턴:", toolNames.length ? "tool_use(" + toolNames.join(", ") + ")" : "텍스트 응답");
+          send(res, 200, JSON.stringify({ ok: true, content: content, stopReason: data.stop_reason || null }), {
             "Content-Type": "application/json; charset=utf-8",
           });
         })
         .catch((e) => {
-          console.error("AI 라우팅 실패:", e.message || e);
+          console.error("AI 에이전트 턴 실패:", e.message || e);
           send(res, 500, JSON.stringify({ ok: false, error: String((e && e.message) || e) }), {
             "Content-Type": "application/json; charset=utf-8",
           });
@@ -541,7 +699,20 @@ const server = http.createServer((req, res) => {
         const placeholders = Array.from({ length: imageCount }, (_, i) => `{{IMAGE_${i + 1}}}`).join(", ");
         imageNote = `\n\n사용 가능한 이미지: ${placeholders} (총 ${imageCount}장, 방금 AI가 그려준 그림입니다). 어울리면 이 데모 안에서 리소스로 활용하세요.`;
       }
-      const userText = "요청: " + prompt + imageNote + "\n\n위 요청에 맞는 완전한 HTML 문서 하나를 작성해서 출력하세요.";
+      // 이 발표의 주제/구성을 알려줘야 데모의 소재·톤이 슬라이드와 어울리게
+      // 나온다(예: 어떤 발표인지 전혀 모르는 채로 엉뚱한 데모가 나오는 문제 방지).
+      const deckContextText = formatDeckContext(parsed.deckContext);
+      // 사용자가 채팅으로 계속 이어서 요청하면("배경 바꿔줘" 등), 처음부터 새로
+      // 만드는 게 아니라 지금 슬라이드에 있는 데모의 실제 코드를 그대로 주고
+      // 그 위에서 고치게 한다 — 이게 없으면 매번 완전히 새로운 데모가 나온다.
+      const existingAppHtml = capHtmlContext(parsed.existingAppHtml || "");
+      const existingSection = existingAppHtml
+        ? `\n\n지금 있는 데모의 코드:\n---\n${existingAppHtml}\n---`
+        : "";
+      const userText =
+        (deckContextText ? deckContextText + "\n\n" : "") +
+        "요청: " + prompt + imageNote + existingSection +
+        "\n\n위 요청에 맞는 완전한 HTML 문서 하나를 작성해서 출력하세요.";
       let headerSent = false;
       callAnthropicStream(userText, AI_APP_SYSTEM_PROMPT, 20000, (delta) => {
         if (!headerSent) {
@@ -725,6 +896,51 @@ const server = http.createServer((req, res) => {
         }
         fs.writeFileSync(filePath, html, "utf8");
         console.log(`저장됨: ${file} (${html.length.toLocaleString()} bytes)`);
+        send(res, 200, JSON.stringify({ ok: true }), {
+          "Content-Type": "application/json; charset=utf-8",
+        });
+      } catch (e) {
+        send(res, 500, JSON.stringify({ ok: false, error: String(e) }), {
+          "Content-Type": "application/json; charset=utf-8",
+        });
+      }
+    });
+    return;
+  }
+
+  // "슬라이드 마스터" — assets/styles.css의 :root 변수 블록을 통째로 바꿔써서,
+  // 이 스타일시트를 함께 쓰는 모든 슬라이드의 테마(배경/텍스트/포인트색/글꼴)를
+  // 한 번에 바꾼다. 색상은 반드시 #rrggbb 형태만, 글꼴은 허용 목록의 키만 받아서
+  // CSS에 임의 문자열이 그대로 꽂히는 걸 막는다.
+  if (req.method === "POST" && url === "/api/save-theme") {
+    let thbody = "";
+    req.on("data", (chunk) => (thbody += chunk));
+    req.on("end", () => {
+      try {
+        const parsed = JSON.parse(thbody);
+        const v = (parsed && parsed.vars) || {};
+        for (const key of Object.keys(THEME_CSS_VAR)) {
+          if (!isHexColor(v[key])) {
+            return send(res, 400, JSON.stringify({ ok: false, error: `잘못된 색상 값: ${key}` }), {
+              "Content-Type": "application/json; charset=utf-8",
+            });
+          }
+        }
+        const fontKey = THEME_FONT_STACKS[v.font] ? v.font : "default";
+        const cssPath = path.join(ROOT, "assets", "styles.css");
+        const original = fs.readFileSync(cssPath, "utf8");
+        if (!/:root\s*\{[^}]*\}/.test(original)) {
+          return send(res, 500, JSON.stringify({ ok: false, error: "styles.css에서 :root 블록을 찾지 못했습니다" }), {
+            "Content-Type": "application/json; charset=utf-8",
+          });
+        }
+        const decls = Object.keys(THEME_CSS_VAR)
+          .map((key) => `  ${THEME_CSS_VAR[key]}: ${v[key]};`)
+          .join("\n");
+        const newRoot = `:root {\n${decls}\n  --font: ${THEME_FONT_STACKS[fontKey]};\n}`;
+        const updated = original.replace(/:root\s*\{[^}]*\}/, newRoot);
+        fs.writeFileSync(cssPath, updated, "utf8");
+        console.log("슬라이드 마스터(테마) 저장됨 — 모든 슬라이드에 적용됩니다");
         send(res, 200, JSON.stringify({ ok: true }), {
           "Content-Type": "application/json; charset=utf-8",
         });

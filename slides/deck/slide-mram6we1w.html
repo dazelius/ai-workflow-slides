@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="ko"><head>
+<meta charset="UTF-8">
+<title>새 슬라이드</title>
+<link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+<div class="slide"><div class="kicker"><br></div><div class="center-stage"><div class="col" style="gap:1.6vw;"><div class="todo-block">
+    </div>
+  </div>
+</div>
+<div class="page-number" id="page-number">48 / 103</div><div class="free-el free-el--app" contenteditable="false" style="position: absolute; left: 5.26934%; top: 8.64737%; width: 87.2368%; height: 88.5675%; z-index: 10;"><iframe sandbox="allow-scripts allow-forms allow-pointer-lock allow-popups" frameborder="0" srcdoc="&lt;!DOCTYPE html&gt;
+&lt;html lang=&quot;ko&quot;&gt;
+&lt;head&gt;
+&lt;meta charset=&quot;UTF-8&quot;&gt;
+&lt;title&gt;플레이어 피드백 위치 로거&lt;/title&gt;
+&lt;style&gt;
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    width: 100%; height: 100%;
+    background: #14151a;
+    color: #eee;
+    font-family: &quot;Segoe UI&quot;, &quot;Malgun Gothic&quot;, sans-serif;
+    overflow: hidden;
+  }
+  #app {
+    width: 100%; height: 100%;
+    display: flex; flex-direction: column;
+  }
+  #hint {
+    flex: 0 0 auto;
+    text-align: center;
+    font-size: clamp(11px, 1.6vw, 13px);
+    color: #bbb;
+    padding: 6px 8px;
+    background: #1c1d24;
+    border-bottom: 1px solid #2a2b33;
+  }
+  #hint b { color: #ff6b4a; }
+  #main {
+    flex: 1 1 auto;
+    display: flex;
+    min-height: 0;
+  }
+  #mapWrap {
+    position: relative;
+    flex: 1 1 62%;
+    min-width: 0;
+    background: #101116;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  #mapCanvas {
+    display: block;
+    cursor: crosshair;
+    background: #191a21;
+    touch-action: none;
+  }
+  #sidebar {
+    flex: 0 0 38%;
+    max-width: 320px;
+    display: flex;
+    flex-direction: column;
+    background: #17181f;
+    border-left: 1px solid #2a2b33;
+    min-width: 170px;
+  }
+  #logHeader {
+    padding: 8px 10px 4px;
+    font-size: clamp(11px, 1.5vw, 13px);
+    font-weight: bold;
+    color: #ff6b4a;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  #logHeader span.count {
+    color: #999;
+    font-weight: normal;
+    font-size: 11px;
+  }
+  #logList {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 4px 8px;
+    font-size: clamp(10px, 1.4vw, 12px);
+  }
+  .logItem {
+    background: #1f2028;
+    border: 1px solid #2c2d38;
+    border-left: 3px solid #ff6b4a;
+    border-radius: 4px;
+    padding: 6px 8px;
+    margin-bottom: 6px;
+    line-height: 1.5;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  .logItem:hover { background: #262735; }
+  .logItem .tag {
+    display: inline-block;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    margin-right: 4px;
+    color: #14151a;
+    font-weight: bold;
+  }
+  .logItem .coord {
+    color: #8fd6ff;
+  }
+  .logItem .dir {
+    color: #ffd27a;
+  }
+  .logItem .del {
+    float: right;
+    color: #666;
+    cursor: pointer;
+  }
+  .logItem .del:hover { color: #ff6b4a; }
+  #panel {
+    flex: 0 0 auto;
+    border-top: 1px solid #2a2b33;
+    padding: 8px 10px;
+  }
+  #panel select, #panel button, #panel textarea {
+    width: 100%;
+    background: #24252d;
+    color: #eee;
+    border: 1px solid #34353f;
+    border-radius: 4px;
+    padding: 6px;
+    font-size: 12px;
+    margin-top: 4px;
+  }
+  #panel textarea { resize: none; height: 36px; font-family: inherit; }
+  #panel label { font-size: 11px; color: #999; }
+  #confirmBtn {
+    margin-top: 6px;
+    background: #ff6b4a;
+    color: #14151a;
+    font-weight: bold;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+  }
+  #confirmBtn:disabled {
+    background: #444; color: #888; cursor: not-allowed;
+  }
+  #clearBtn {
+    margin-top: 4px;
+    background: #24252d;
+    color: #999;
+    cursor: pointer;
+    font-size: 11px;
+  }
+  #tempMarkerInfo {
+    font-size: 11px;
+    color: #ff6b4a;
+    margin-top: 4px;
+  }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-thumb { background: #3a3b45; border-radius: 3px; }
+&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;div id=&quot;app&quot;&gt;
+  &lt;div id=&quot;hint&quot;&gt;
+    맵 위 &lt;b&gt;클릭&lt;/b&gt;으로 지점 선택 → 클릭한 채로 &lt;b&gt;드래그&lt;/b&gt;하여 시선 방향 지정 → 코멘트 입력 후 &lt;b&gt;기록&lt;/b&gt;
+  &lt;/div&gt;
+  &lt;div id=&quot;main&quot;&gt;
+    &lt;div id=&quot;mapWrap&quot;&gt;
+      &lt;canvas id=&quot;mapCanvas&quot;&gt;&lt;/canvas&gt;
+    &lt;/div&gt;
+    &lt;div id=&quot;sidebar&quot;&gt;
+      &lt;div id=&quot;logHeader&quot;&gt;피드백 로그 &lt;span class=&quot;count&quot; id=&quot;logCount&quot;&gt;0건&lt;/span&gt;&lt;/div&gt;
+      &lt;div id=&quot;logList&quot;&gt;&lt;/div&gt;
+      &lt;div id=&quot;panel&quot;&gt;
+        &lt;label&gt;이슈 유형&lt;/label&gt;
+        &lt;select id=&quot;tagSelect&quot;&gt;
+          &lt;option value=&quot;사각지대&quot; style=&quot;color:#ff6b4a&quot;&gt;🟠 사각지대&lt;/option&gt;
+          &lt;option value=&quot;좁음&quot; style=&quot;color:#ffd27a&quot;&gt;🟡 통로 협소&lt;/option&gt;
+          &lt;option value=&quot;피격&quot; style=&quot;color:#ff4a6b&quot;&gt;🔴 원인불명 피격&lt;/option&gt;
+          &lt;option value=&quot;기타&quot; style=&quot;color:#8fd6ff&quot;&gt;🔵 기타&lt;/option&gt;
+        &lt;/select&gt;
+        &lt;label&gt;코멘트&lt;/label&gt;
+        &lt;textarea id=&quot;commentInput&quot; placeholder=&quot;예: 이 방향에서 갑자기 총 맞음&quot;&gt;&lt;/textarea&gt;
+        &lt;div id=&quot;tempMarkerInfo&quot;&gt;지점을 클릭해주세요&lt;/div&gt;
+        &lt;button id=&quot;confirmBtn&quot; disabled&gt;+ 기록 추가&lt;/button&gt;
+        &lt;button id=&quot;clearBtn&quot;&gt;전체 초기화&lt;/button&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+&lt;/div&gt;
+
+&lt;script&gt;
+(function(){
+  const canvas = document.getElementById('mapCanvas');
+  const ctx = canvas.getContext('2d');
+  const wrap = document.getElementById('mapWrap');
+
+  const tagColors = {
+    '사각지대': '#ff6b4a',
+    '좁음': '#ffd27a',
+    '피격': '#ff4a6b',
+    '기타': '#8fd6ff'
+  };
+
+  // 가상 맵 레이아웃 (0~1 정규화 좌표계 기반, 벽/장애물)
+  const walls = [
+    {x:0.05,y:0.05,w:0.9,h:0.05},
+    {x:0.05,y:0.90,w:0.9,h:0.05},
+    {x:0.05,y:0.05,w:0.05,h:0.9},
+    {x:0.90,y:0.05,w:0.05,h:0.9},
+    {x:0.30,y:0.15,w:0.05,h:0.35},
+    {x:0.55,y:0.50,w:0.05,h:0.35},
+    {x:0.15,y:0.55,w:0.30,h:0.05},
+    {x:0.60,y:0.20,w:0.30,h:0.05},
+    {x:0.42,y:0.35,w:0.16,h:0.06}
+  ];
+
+  let logs = [];
+  let idCounter = 1;
+  let temp = null; // {nx, ny} 클릭 지점 (정규화)
+  let dragging = false;
+  let dragAngle = null; // 라디안
+
+  function resizeCanvas(){
+    const rect = wrap.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+    draw();
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  function toPix(nx, ny){
+    return { x: nx * canvas.width, y: ny * canvas.height };
+  }
+  function toNorm(px, py){
+    return { nx: px / canvas.width, ny: py / canvas.height };
+  }
+
+  function draw(){
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0,0,w,h);
+
+    // 바닥
+    ctx.fillStyle = '#191a21';
+    ctx.fillRect(0,0,w,h);
+
+    // 그리드
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+    ctx.lineWidth = 1;
+    const gridN = 10;
+    for(let i=1;i&lt;gridN;i++){
+      ctx.beginPath();
+      ctx.moveTo(i*w/gridN, 0); ctx.lineTo(i*w/gridN, h);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, i*h/gridN); ctx.lineTo(w, i*h/gridN);
+      ctx.stroke();
+    }
+
+    // 벽
+    ctx.fillStyle = '#33343e';
+    ctx.strokeStyle = '#45465500';
+    walls.forEach(wall=&gt;{
+      ctx.fillRect(wall.x*w, wall.y*h, wall.w*w, wall.h*h);
+    });
+
+    // 기존 로그 마커
+    logs.forEach(log=&gt;{
+      const p = toPix(log.nx, log.ny);
+      const color = tagColors[log.tag] || '#8fd6ff';
+
+      // 시야 부채꼴
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(log.angle);
+      const fovLen = Math.min(w,h) * 0.16;
+      const fovAngle = 0.55;
+      ctx.beginPath();
+      ctx.moveTo(0,0);
+      ctx.arc(0,0, fovLen, -fovAngle, fovAngle);
+      ctx.closePath();
+      ctx.fillStyle = color + '33';
+      ctx.fill();
+      // 방향선
+      ctx.beginPath();
+      ctx.moveTo(0,0);
+      ctx.lineTo(fovLen, 0);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
+
+      // 점
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 6, 0, Math.PI*2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.strokeStyle = '#14151a';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // 번호
+      ctx.fillStyle = '#14151a';
+      ctx.font = 'bold 9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(log.id, p.x, p.y);
+    });
+
+    // 임시(현재 편집중) 마커
+    if(temp){
+      const p = toPix(temp.nx, temp.ny);
+      if(dragAngle !== null){
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(dragAngle);
+        const fovLen = Math.min(w,h) * 0.18;
+        const fovAngle = 0.55;
+        ctx.beginPath();
+        ctx.moveTo(0,0);
+        ctx.arc(0,0, fovLen, -fovAngle, fovAngle);
+        ctx.closePath();
+        ctx.fillStyle = '#ff6b4a44';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(0,0);
+        ctx.lineTo(fovLen, 0);
+        ctx.strokeStyle = '#ff6b4a';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        ctx.restore();
+      }
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 8, 0, Math.PI*2);
+      ctx.fillStyle = '#ff6b4a';
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+  }
+
+  function angleLabel(rad){
+    // 0=동, 시계방향(캔버스 y down이므로 화면상 아래가 +)
+    let deg = rad * 180 / Math.PI;
+    deg = ((deg % 360) + 360) % 360;
+    const dirs = ['E','SE','S','SW','W','NW','N','NE'];
+    const idx = Math.round(deg / 45) % 8;
+    return dirs[idx] + ' (' + Math.round(deg) + '°)';
+  }
+
+  function updateTempInfo(){
+    const info = document.getElementById('tempMarkerInfo');
+    const btn = document.getElementById('confirmBtn');
+    if(!temp){
+      info.textContent = '지점을 클릭해주세요';
+      btn.disabled = true;
+      return;
+    }
+    let txt = 'X: ' + temp.nx.toFixed(2) + ', Y: ' + temp.ny.toFixed(2);
+    if(dragAngle !== null){
+      txt += ' | 방향: ' + angleLabel(dragAngle);
+      btn.disabled = false;
+    } else {
+      txt += ' | 방향: 드래그로 지정하세요';
+      btn.disabled = true;
+    }
+    info.textContent = txt;
+  }
+
+  function getPos(e){
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return { x: clientX - rect.left, y: clientY - rect.top };
+  }
+
+  canvas.addEventListener('mousedown', (e)=&gt;{
+    const pos = getPos(e);
+    const n = toNorm(pos.x, pos.y);
+    temp = n;
+    dragAngle = null;
+    dragging = true;
+    updateTempInfo();
+    draw();
+  });
+
+  window.addEventListener('mousemove', (e)=&gt;{
+    if(!dragging || !temp) return;
+    const pos = getPos(e);
+    const p0 = toPix(temp.nx, temp.ny);
+    const dx = pos.x - p0.x;
+    const dy = pos.y - p0.y;
+    if(Math.hypot(dx,dy) &gt; 5){
+      dragAngle = Math.atan2(dy, dx);
+    }
+    updateTempInfo();
+    draw();
+  });
+
+  window.addEventListener('mouseup', ()=&gt;{
+    dragging = false;
+  });
+
+  canvas.addEventListener('touchstart', (e)=&gt;{
+    e.preventDefault();
+    const pos = getPos(e);
+    const n = toNorm(pos.x, pos.y);
+    temp = n;
+    dragAngle = null;
+    dragging = true;
+    updateTempInfo();
+    draw();
+  }, {passive:false});
+
+  canvas.addEventListener('touchmove', (e)=&gt;{
+    e.preventDefault();
+    if(!dragging || !temp) return;
+    const pos = getPos(e);
+    const p0 = toPix(temp.nx, temp.ny);
+    const dx = pos.x - p0.x;
+    const dy = pos.y - p0.y;
+    if(Math.hypot(dx,dy) &gt; 5){
+      dragAngle = Math.atan2(dy, dx);
+    }
+    updateTempInfo();
+    draw();
+  }, {passive:false});
+
+  canvas.addEventListener('touchend', ()=&gt;{ dragging = false; });
+
+  function renderLogList(){
+    const list = document.getElementById('logList');
+    document.getElementById('logCount').textContent = logs.length + '건';
+    if(logs.length === 0){
+      list.innerHTML = '&lt;div style=&quot;color:#666; font-size:11px; padding:8px 0;&quot;&gt;아직 기록된 피드백이 없습니다.&lt;/div&gt;';
+      return;
+    }
+    list.innerHTML = '';
+    logs.slice().reverse().forEach(log=&gt;{
+      const div = document.createElement('div');
+      div.className = 'logItem';
+      const color = tagColors[log.tag] || '#8fd6ff';
+      div.innerHTML =
+        '&lt;span class=&quot;del&quot; data-id=&quot;'+log.id+'&quot;&gt;✕&lt;/span&gt;' +
+        '&lt;span class=&quot;tag&quot; style=&quot;background:'+color+'&quot;&gt;#'+log.id+' '+log.tag+'&lt;/span&gt;&lt;br&gt;' +
+        '&lt;span class=&quot;coord&quot;&gt;(' + log.nx.toFixed(2) + ', ' + log.ny.toFixed(2) + ')&lt;/span&gt;' +
+        ' · &lt;span class=&quot;dir&quot;&gt;' + angleLabel(log.angle) + '&lt;/span&gt;&lt;br&gt;' +
+        (log.comment ? ('&lt;span&gt;' + escapeHtml(log.comment) + '&lt;/span&gt;') : '&lt;span style=&quot;color:#666&quot;&gt;코멘트 없음&lt;/span&gt;');
+      div.addEventListener('click', (ev)=&gt;{
+        if(ev.target.classList.contains('del')) return;
+        highlightLog(log.id);
+      });
+      list.appendChild(div);
+    });
+    list.querySelectorAll('.del').forEach(el=&gt;{
+      el.addEventListener('click', (ev)=&gt;{
+        ev.stopPropagation();
+        const id = parseInt(el.getAttribute('data-id'));
+        logs = logs.filter(l=&gt;l.id !== id);
+        renderLogList();
+        draw();
+      });
+    });
+  }
+
+  function highlightLog(id){
+    const log = logs.find(l=&gt;l.id===id);
+    if(!log) return;
+    const p = toPix(log.nx, log.ny);
+    draw();
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 14, 0, Math.PI*2);
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    setTimeout(draw, 500);
+  }
+
+  function escapeHtml(s){
+    return s.replace(/[&amp;&lt;&gt;&quot;']/g, c=&gt;({'&amp;':'&amp;amp;','&lt;':'&amp;lt;','&gt;':'&amp;gt;','&quot;':'&amp;quot;',&quot;'&quot;:'&amp;#39;'}[c]));
+  }
+
+  document.getElementById('confirmBtn').addEventListener('click', ()=&gt;{
+    if(!temp || dragAngle === null) return;
+    const tag = document.getElementById('tagSelect').value;
+    const comment = document.getElementById('commentInput').value.trim();
+    logs.push({
+      id: idCounter++,
+      nx: temp.nx,
+      ny: temp.ny,
+      angle: dragAngle,
+      tag: tag,
+      comment: comment
+    });
+    temp = null;
+    dragAngle = null;
+    document.getElementById('commentInput').value = '';
+    updateTempInfo();
+    renderLogList();
+    draw();
+  });
+
+  document.getElementById('clearBtn').addEventListener('click', ()=&gt;{
+    if(logs.length &amp;&amp; !confirm('모든 기록을 삭제할까요?')) return;
+    logs = [];
+    temp = null;
+    dragAngle = null;
+    idCounter = 1;
+    updateTempInfo();
+    renderLogList();
+    draw();
+  });
+
+  renderLogList();
+  requestAnimationFrame(()=&gt;{
+    resizeCanvas();
+  });
+})();
+&lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;"></iframe></div></div>
+  <script src="../assets/page-number.js"></script>
+  <script src="../assets/editor.js"></script>
+
+
+</body></html>

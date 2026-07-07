@@ -12,13 +12,21 @@
 (function () {
   var ROOT_SELECTOR = ".slide";
   var UI_ID = "__cursor_editor_ui";
-  var AI_PANEL_ID = "__cursor_ai_panel";
-  var AI_BACKDROP_ID = "__cursor_ai_backdrop";
   var STYLE_PANEL_ID = "__cursor_style_panel";
   var PICK_INDICATOR_ID = "__cursor_pick_indicator";
-  // AI 챗봇은 버튼을 여러 개로 나누지 않고, 자연어 요청 하나를 받아서
-  // 서버(/api/ai/route)가 text/image/app 중 뭘 할지 알아서 판단하게 한다.
-  var deckContext = null; // index.html이 postMessage로 보내주는 전체 발표 맥락 정보
+  var LOCAL_DRAFT_BAR_ID = "__cursor_local_draft_bar";
+  var THEME_PANEL_ID = "__cursor_theme_panel";
+  var THEME_BACKDROP_ID = "__cursor_theme_backdrop";
+  var THEME_OVERRIDE_STYLE_ID = "__cursor_theme_override";
+  // GitHub Pages 같은 정적 호스팅에는 /api/save를 받아줄 서버가 없다. 그런
+  // 곳에서도 "저장"이 완전히 헛수고가 되지 않도록, 실패하면 이 브라우저의
+  // localStorage에 임시로 담아두고(새로고침해도 남아있게) 파일로도 다운로드해서
+  // 사용자가 직접 원본 파일을 덮어쓸 수 있게 한다. (index.html의 AI 에이전트가
+  // 문자열 파이프라인으로 슬라이드를 고칠 때도 정확히 같은 키 규칙을 쓴다.)
+  var LOCAL_SAVE_PREFIX = "cursorEditorLocalSave:";
+  // index.html(부모, AI 에이전트)이 postMessage로 보내주는 전체 발표 맥락
+  // 정보 — 지금은 참고용으로만 저장해두고 별도로 읽는 곳은 없다.
+  var deckContext = null;
   var dragState = null;
   // 파워포인트의 "도형 서식" 패널처럼, 지금 선택된 요소를 별도로 기억해둔다.
   // document.activeElement만 보면 서식 패널의 색상/슬라이더를 조작하는 순간
@@ -29,13 +37,6 @@
   // (드래그는 안 되지만) 서식 패널로 배경/테두리/모서리/그림자만큼은 만질 수 있게
   // 별도로 추적한다. free-el 선택과는 서로 배타적이다.
   var selectedStructEl = null;
-  // AI가 생성한 이미지를 인터랙티브 데모(app) 안에서 캐릭터/배경 스프라이트 같은
-  // 리소스로 재사용할 수 있게, 최근 생성 이미지를 데이터URL 그대로 몇 장 기억해둔다.
-  // (base64 원본을 서버/Claude에 매번 왕복시키면 토큰을 어마어마하게 잡아먹으므로,
-  // Claude에게는 개수만 알려주고 {{IMAGE_n}} 플레이스홀더로 받아서 클라이언트에서
-  // 실제 데이터로 치환한다.)
-  var aiGeneratedImages = [];
-  var AI_IMAGE_MEMORY = 4;
   var history = [];
   var historyIndex = -1;
   var isRestoring = false;
@@ -49,6 +50,120 @@
 
   function relFilePath() {
     return window.location.pathname.replace(/^\//, "");
+  }
+
+  function localSaveKey() {
+    return LOCAL_SAVE_PREFIX + relFilePath();
+  }
+
+  function fileBaseName() {
+    var parts = relFilePath().split("/");
+    return parts[parts.length - 1] || "slide.html";
+  }
+
+  // 파일로 다운로드해서 "진짜 로컬 저장"을 흉내낸다 — 서버가 없어도 사용자가
+  // 이 파일을 받아서 직접 deck 폴더의 원본에 덮어쓸 수 있다.
+  function downloadHtml(html) {
+    var blob = new Blob([html], { type: "text/html" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = fileBaseName();
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  }
+
+  // /api/save가 없는 환경(GitHub Pages 등)에서 저장이 실패하면 이 브라우저의
+  // localStorage에 최신 내용을 남겨서, 같은 브라우저로 같은 슬라이드를 다시
+  // 열었을 때 방금 만진 내용이 자동으로 복원되게 한다. 실제 파일이 바뀌는 건
+  // 아니라서 "임시" 저장이라는 걸 항상 눈에 보이는 안내 바로 알려준다.
+  function saveLocalDraft(html) {
+    try {
+      localStorage.setItem(localSaveKey(), JSON.stringify({ html: html, savedAt: Date.now() }));
+    } catch (e) {
+      // 저장 공간이 꽉 찼거나 localStorage를 못 쓰는 환경이면 그냥 다운로드만으로 대신한다
+    }
+  }
+
+  function clearLocalDraft() {
+    try {
+      localStorage.removeItem(localSaveKey());
+    } catch (e) {
+      // 무시
+    }
+  }
+
+  function getLocalDraft() {
+    try {
+      var raw = localStorage.getItem(localSaveKey());
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // 페이지를 열 때 이 브라우저에 남겨진 임시 저장본이 있으면, 지금 로드된
+  // (서버/GitHub Pages의) 원본 위에 그 내용을 덮어 씌워서 보여준다. innerHTML과
+  // 루트 class(hook/section 등)만 옮기고 <head>/스크립트는 그대로 둬서, 지금
+  // 실행 중인 이 스크립트 자신을 건드리지 않는다.
+  function restoreLocalDraftIfAny() {
+    var draft = getLocalDraft();
+    if (!draft || !draft.html) return;
+    var root = getRoot();
+    if (!root) return;
+    var parsed;
+    try {
+      parsed = new DOMParser().parseFromString(draft.html, "text/html");
+    } catch (e) {
+      return;
+    }
+    var draftRoot = parsed.querySelector(ROOT_SELECTOR);
+    if (!draftRoot) return;
+    root.innerHTML = draftRoot.innerHTML;
+    root.className = draftRoot.className;
+    // free-el 크롬(리사이즈 핸들/삭제 버튼/방패)은 편집 모드로 들어갈 때
+    // setEditing()이 enhanceFreeEls()를 불러서 붙여준다 — 여기서는 안 붙여야
+    // 발표/미리보기 중에 호버만 해도 삭제 버튼이 보이는 일이 없다.
+    showLocalDraftBar(draft.savedAt);
+  }
+
+  // "이건 실제 파일이 아니라 이 브라우저에만 있는 임시본" 이라는 걸 항상 보이는
+  // 배너로 알려주고, 원할 때 원본으로 되돌리거나 다시 파일로 받을 수 있게 한다.
+  function showLocalDraftBar(savedAt) {
+    if (document.getElementById(LOCAL_DRAFT_BAR_ID)) return;
+    var bar = document.createElement("div");
+    bar.id = LOCAL_DRAFT_BAR_ID;
+    bar.style.cssText =
+      "position:fixed;left:0;right:0;bottom:0;z-index:999990;display:flex;align-items:center;" +
+      "gap:10px;flex-wrap:wrap;padding:8px 14px;background:#2a1f14;color:#e8b988;" +
+      "border-top:1px solid #4a3520;font-size:12.5px;" +
+      "font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;";
+    var when = savedAt ? new Date(savedAt).toLocaleString() : "";
+    bar.innerHTML =
+      "<span>⚠ 이 브라우저에만 저장된 임시 편집본을 보고 있습니다(" + when +
+      ") — 실제 파일은 바뀌지 않았어요.</span>" +
+      '<button type="button" data-draft="discard" style="font-family:inherit;font-size:12px;color:#eceded;' +
+      "background:#2a2c33;border:1px solid #3c3e46;border-radius:4px;padding:4px 10px;cursor:pointer;\">원본으로 되돌리기</button>" +
+      '<button type="button" data-draft="download" style="font-family:inherit;font-size:12px;color:#eceded;' +
+      "background:#2a2c33;border:1px solid #3c3e46;border-radius:4px;padding:4px 10px;cursor:pointer;\">파일로 다운로드</button>" +
+      '<button type="button" data-draft="dismiss" style="margin-left:auto;font-family:inherit;font-size:16px;' +
+      "line-height:1;color:#e8b988;background:none;border:none;cursor:pointer;padding:2px 6px;\">✕</button>";
+    bar.addEventListener("click", function (e) {
+      var btn = e.target.closest("button");
+      if (!btn) return;
+      var action = btn.getAttribute("data-draft");
+      if (action === "discard") {
+        clearLocalDraft();
+        window.location.reload();
+      } else if (action === "download") {
+        downloadHtml(buildSaveHtml());
+      } else if (action === "dismiss") {
+        bar.remove();
+      }
+    });
+    document.body.appendChild(bar);
   }
 
   function getRoot() {
@@ -70,12 +185,14 @@
     if (el) selectedStructEl = null;
     updateStylePanel();
     updatePickIndicator();
+    updateAlignButtons();
   }
 
   function selectStructEl(el) {
     selectedStructEl = el || null;
     if (el) selectedFreeEl = null;
     updateStylePanel();
+    updateAlignButtons();
     updatePickIndicator();
   }
 
@@ -187,6 +304,292 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* 툴바 아이콘 — Lucide(ISC 라이선스, 시중에서 널리 쓰이는 라인 아이콘 세트)의   */
+  /* 원본 path 데이터를 그대로 인라인 SVG로 사용한다. 외부 CDN을 불러오지 않으므로 */
+  /* 오프라인/GitHub Pages에서도 동일하게 보인다.                              */
+  /* ------------------------------------------------------------------ */
+
+  var ICONS = {
+    "undo-2": '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"/>',
+    "redo-2": '<path d="m15 14 5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13"/>',
+    bold: '<path d="M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8"/>',
+    italic: '<line x1="19" x2="10" y1="4" y2="4"/><line x1="14" x2="5" y1="20" y2="20"/><line x1="15" x2="9" y1="4" y2="20"/>',
+    underline: '<path d="M6 4v6a6 6 0 0 0 12 0V4"/><line x1="4" x2="20" y1="20" y2="20"/>',
+    highlighter: '<path d="m9 11-6 6v3h9l3-3"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/>',
+    eraser: '<path d="M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.829 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21"/><path d="m5.082 11.09 8.828 8.828"/>',
+    "remove-formatting": '<path d="M4 7V4h16v3"/><path d="M5 20h6"/><path d="M13 4 8 20"/><path d="m15 15 5 5"/><path d="m20 15-5 5"/>',
+    "align-left": '<path d="M21 5H3"/><path d="M15 12H3"/><path d="M17 19H3"/>',
+    "align-center": '<path d="M21 5H3"/><path d="M17 12H7"/><path d="M19 19H5"/>',
+    "align-right": '<path d="M21 5H3"/><path d="M21 12H9"/><path d="M21 19H7"/>',
+    "align-justify": '<path d="M3 5h18"/><path d="M3 12h18"/><path d="M3 19h18"/>',
+    "align-h-start": '<rect width="6" height="14" x="6" y="5" rx="2"/><rect width="6" height="10" x="16" y="7" rx="2"/><path d="M2 2v20"/>',
+    "align-h-center": '<rect width="6" height="14" x="2" y="5" rx="2"/><rect width="6" height="10" x="16" y="7" rx="2"/><path d="M12 2v20"/>',
+    "align-h-end": '<rect width="6" height="14" x="2" y="5" rx="2"/><rect width="6" height="10" x="12" y="7" rx="2"/><path d="M22 2v20"/>',
+    "align-v-start": '<rect width="14" height="6" x="5" y="16" rx="2"/><rect width="10" height="6" x="7" y="6" rx="2"/><path d="M2 2h20"/>',
+    "align-v-center": '<rect width="14" height="6" x="5" y="16" rx="2"/><rect width="10" height="6" x="7" y="2" rx="2"/><path d="M2 12h20"/>',
+    "align-v-end": '<rect width="14" height="6" x="5" y="12" rx="2"/><rect width="10" height="6" x="7" y="2" rx="2"/><path d="M2 22h20"/>',
+    "case-sensitive": '<path d="m2 16 4.039-9.69a.5.5 0 0 1 .923 0L11 16"/><path d="M22 9v7"/><path d="M3.304 13h6.392"/><circle cx="18.5" cy="12.5" r="3.5"/>',
+    minus: '<path d="M5 12h14"/>',
+    plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+    type: '<path d="M12 4v16"/><path d="M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2"/><path d="M9 20h6"/>',
+    square: '<rect width="18" height="18" x="3" y="3" rx="2"/>',
+    "line-diagonal": '<line x1="19" y1="5" x2="5" y2="19"/>',
+    image: '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
+    video: '<path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/>',
+    "code-2": '<path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/>',
+    sparkles: '<path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/>',
+    "bring-to-front": '<rect x="8" y="8" width="8" height="8" rx="2"/><path d="M4 10a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2"/><path d="M14 20a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-4a2 2 0 0 0-2-2"/>',
+    "send-to-back": '<rect x="14" y="14" width="8" height="8" rx="2"/><rect x="2" y="2" width="8" height="8" rx="2"/><path d="M7 14v1a2 2 0 0 0 2 2h1"/><path d="M14 7h1a2 2 0 0 1 2 2v1"/>',
+    copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+    "trash-2": '<path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+    save: '<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>',
+    x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+    palette: '<path d="M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z"/><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/>',
+    send: '<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/>',
+    squarePen: '<path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/>',
+    key: '<path d="M2 18v3c0 .6.4 1 1 1h4v-3h3v-3h2l1.4-1.4a6.5 6.5 0 1 0-4-4Z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/>',
+  };
+
+  function icon(name, size) {
+    var body = ICONS[name] || "";
+    return (
+      '<svg class="ce-icon" width="' + (size || 15) + '" height="' + (size || 15) +
+      '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + body + "</svg>"
+    );
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* 슬라이드 마스터(테마) — 지금은 다크 톤 하나뿐이라, 배경/텍스트/포인트색/     */
+  /* 글꼴을 여기서 바꾸면 assets/styles.css의 :root 변수가 바뀌어서 전체       */
+  /* 슬라이드(이 파일 하나를 공유해서 쓰는 모든 슬라이드)에 한 번에 적용된다.    */
+  /* 슬라이드별로 지정한 배경색 등 개별 설정은 인라인 스타일이라 항상 이보다     */
+  /* 우선한다 — 파워포인트의 "슬라이드 마스터 vs 개별 슬라이드 오버라이드"와    */
+  /* 같은 관계.                                                          */
+  /* ------------------------------------------------------------------ */
+
+  var THEME_VAR_KEYS = ["bg", "bgPanel", "text", "muted", "muted2", "accent", "line"];
+  var THEME_CSS_VAR = {
+    bg: "--bg", bgPanel: "--bg-panel", text: "--text", muted: "--muted",
+    muted2: "--muted-2", accent: "--accent", line: "--line",
+  };
+  // 폰트는 색상과 달리 임의 문자열을 그대로 CSS에 꽂으면 위험할 수 있어서,
+  // 항상 이 허용 목록 중 하나의 키만 서버로 보내고 실제 font-stack 문자열은
+  // 서버도 클라이언트도 이 표에서만 가져온다(에디터 툴바의 글꼴 선택과 동일한 구성).
+  var THEME_FONT_STACKS = {
+    default: "'Pretendard','Apple SD Gothic Neo','Malgun Gothic',-apple-system,BlinkMacSystemFont,sans-serif",
+    gothic: "'Malgun Gothic','Apple SD Gothic Neo',sans-serif",
+    dotum: "'Dotum','돋움',sans-serif",
+    batang: "'Batang','바탕',serif",
+    gungseo: "'Gungsuh','궁서',serif",
+  };
+  var THEME_PRESETS = {
+    dark: { name: "다크 (기본)", bg: "#0c0d10", bgPanel: "#16171b", text: "#f2f3f5", muted: "#999da5", muted2: "#6b6e75", accent: "#ff6b4a", line: "#26282e", font: "default" },
+    light: { name: "화이트", bg: "#f7f7f5", bgPanel: "#ffffff", text: "#1c1d21", muted: "#6b6e75", muted2: "#9a9da5", accent: "#e05a3a", line: "#e2e2e0", font: "default" },
+    navy: { name: "네이비", bg: "#0b1526", bgPanel: "#111f36", text: "#f2f4f8", muted: "#93a1bd", muted2: "#5b6a86", accent: "#4fa8ff", line: "#1d2c47", font: "default" },
+    warm: { name: "웜/베이지", bg: "#181410", bgPanel: "#231d16", text: "#f6efe6", muted: "#c2ab8e", muted2: "#8a7863", accent: "#e8a33d", line: "#332a20", font: "default" },
+    mono: { name: "모노 그레이", bg: "#111214", bgPanel: "#1a1b1e", text: "#eceded", muted: "#9a9da5", muted2: "#63656b", accent: "#eceded", line: "#2c2e33", font: "default" },
+  };
+
+  function fontStackToKey(stack) {
+    var norm = String(stack || "").replace(/\s+/g, "");
+    var found = Object.keys(THEME_FONT_STACKS).find(function (k) {
+      return THEME_FONT_STACKS[k].replace(/\s+/g, "") === norm;
+    });
+    return found || "default";
+  }
+
+  // 지금 이 문서에 실제로 적용돼 있는 테마 변수 값(:root에서 계산된 값)을
+  // 읽어온다 — 패널을 열 때 폼에 "지금 값"을 채워주기 위해 쓴다.
+  function getCurrentThemeVars() {
+    var cs = getComputedStyle(document.documentElement);
+    var vars = {};
+    THEME_VAR_KEYS.forEach(function (key) {
+      vars[key] = rgbToHex(cs.getPropertyValue(THEME_CSS_VAR[key]).trim()) || cs.getPropertyValue(THEME_CSS_VAR[key]).trim();
+    });
+    vars.font = fontStackToKey(cs.getPropertyValue("--font"));
+    return vars;
+  }
+
+  // 저장 전에도 바로바로 결과가 보이도록, styles.css를 직접 고치는 대신
+  // <head> 맨 끝에 :root 변수를 다시 선언하는 <style>을 하나 얹어서 덮어쓴다
+  // (원본 스타일시트 뒤에 위치하므로 동일 우선순위에서 나중 선언이 이긴다).
+  function applyThemeLive(vars) {
+    var styleEl = document.getElementById(THEME_OVERRIDE_STYLE_ID);
+    if (!styleEl) {
+      styleEl = document.createElement("style");
+      styleEl.id = THEME_OVERRIDE_STYLE_ID;
+      document.head.appendChild(styleEl);
+    }
+    var decls = THEME_VAR_KEYS.map(function (key) {
+      return THEME_CSS_VAR[key] + ":" + (vars[key] || "") + ";";
+    }).join("");
+    var fontStack = THEME_FONT_STACKS[vars.font] || THEME_FONT_STACKS.default;
+    styleEl.textContent = ":root{" + decls + "--font:" + fontStack + ";}";
+  }
+
+  var themePanelSnapshot = null; // 패널을 열었을 때의 값 — "되돌리기"에서 이 값으로 복구한다
+
+  function getThemePanel() {
+    return document.getElementById(THEME_PANEL_ID);
+  }
+
+  function writeThemeForm(vars) {
+    var panel = getThemePanel();
+    if (!panel) return;
+    THEME_VAR_KEYS.forEach(function (key) {
+      var input = panel.querySelector('[data-theme="' + key + '"]');
+      if (input) input.value = vars[key];
+    });
+    var fontSel = panel.querySelector('[data-theme="font"]');
+    if (fontSel) fontSel.value = vars.font;
+  }
+
+  function readThemeForm() {
+    var panel = getThemePanel();
+    var vars = {};
+    if (!panel) return vars;
+    THEME_VAR_KEYS.forEach(function (key) {
+      var input = panel.querySelector('[data-theme="' + key + '"]');
+      if (input) vars[key] = input.value;
+    });
+    var fontSel = panel.querySelector('[data-theme="font"]');
+    vars.font = fontSel ? fontSel.value : "default";
+    return vars;
+  }
+
+  function renderThemePresets() {
+    var panel = getThemePanel();
+    if (!panel) return;
+    var wrap = panel.querySelector(".th-presets");
+    if (!wrap || wrap.childElementCount) return; // 한 번만 그린다
+    Object.keys(THEME_PRESETS).forEach(function (key) {
+      var preset = THEME_PRESETS[key];
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "th-preset";
+      btn.setAttribute("data-preset", key);
+      btn.innerHTML = '<span class="th-preset-dot" style="background:' + preset.bg + '"></span>' + preset.name;
+      wrap.appendChild(btn);
+    });
+  }
+
+  function applyThemePresetByKey(key) {
+    var preset = THEME_PRESETS[key];
+    if (!preset) return;
+    writeThemeForm(preset);
+    applyThemeLive(preset);
+  }
+
+  function openThemePanel() {
+    var panel = getThemePanel();
+    var backdrop = document.getElementById(THEME_BACKDROP_ID);
+    if (!panel) return;
+    renderThemePresets();
+    themePanelSnapshot = getCurrentThemeVars();
+    writeThemeForm(themePanelSnapshot);
+    panel.style.display = "flex";
+    if (backdrop) backdrop.style.display = "block";
+    panel.querySelector(".th-status").textContent = "";
+  }
+
+  function closeThemePanel() {
+    var panel = getThemePanel();
+    var backdrop = document.getElementById(THEME_BACKDROP_ID);
+    if (panel) panel.style.display = "none";
+    if (backdrop) backdrop.style.display = "none";
+    // 저장하지 않고 닫으면(취소하는 것과 같음) 미리보기 중이던 값을 패널을 열기
+    // 전 상태로 되돌린다. 저장을 눌렀다면 themePanelSnapshot이 이미 그 값으로
+    // 갱신돼 있어서 여기선 그대로 유지된다.
+    if (themePanelSnapshot) applyThemeLive(themePanelSnapshot);
+  }
+
+  function toggleThemePanel() {
+    var panel = getThemePanel();
+    if (panel && panel.style.display === "flex") {
+      closeThemePanel();
+      return;
+    }
+    openThemePanel();
+  }
+
+  function resetThemeForm() {
+    if (!themePanelSnapshot) return;
+    writeThemeForm(themePanelSnapshot);
+    applyThemeLive(themePanelSnapshot);
+    var panel = getThemePanel();
+    if (panel) panel.querySelector(".th-status").textContent = "되돌렸습니다";
+  }
+
+  // 서버(로컬 개발 서버)가 있으면 styles.css의 :root 블록을 실제로 고쳐서
+  // 전체 슬라이드에 영구 반영한다. GitHub Pages 같은 정적 호스팅이라 서버가
+  // 없으면(/api/save-theme 실패) 지금 배포된 styles.css를 받아와서 클라이언트가
+  // 직접 :root 블록만 새 값으로 바꾼 뒤 파일로 다운로드해준다 — 사용자가 그
+  // 파일을 assets/styles.css 자리에 직접 덮어쓰면 된다(일반 슬라이드 저장의
+  // 로컬 다운로드 대안과 같은 패턴).
+  function saveTheme() {
+    var panel = getThemePanel();
+    if (!panel) return;
+    var status = panel.querySelector(".th-status");
+    var vars = readThemeForm();
+    status.textContent = "저장 중…";
+    fetch("/api/save-theme", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ vars: vars }),
+    })
+      .then(function (r) {
+        var contentType = r.headers.get("content-type") || "";
+        if (!r.ok || contentType.indexOf("application/json") !== 0) throw new Error("no-backend");
+        return r.json();
+      })
+      .then(function (data) {
+        if (data.ok) {
+          themePanelSnapshot = vars;
+          status.textContent = "저장됨 · 모든 슬라이드에 적용됩니다";
+        } else {
+          status.textContent = "저장 실패: " + data.error;
+        }
+      })
+      .catch(function () {
+        downloadUpdatedStylesCss(vars, status);
+      });
+  }
+
+  function downloadUpdatedStylesCss(vars, status) {
+    var link = document.querySelector('link[rel="stylesheet"][href*="styles.css"]');
+    var cssUrl = link ? link.href : "../assets/styles.css";
+    fetch(cssUrl)
+      .then(function (r) {
+        if (!r.ok) throw new Error("styles.css를 불러오지 못했습니다");
+        return r.text();
+      })
+      .then(function (original) {
+        var decls = THEME_VAR_KEYS.map(function (key) {
+          return "  " + THEME_CSS_VAR[key] + ": " + vars[key] + ";";
+        }).join("\n");
+        var fontStack = THEME_FONT_STACKS[vars.font] || THEME_FONT_STACKS.default;
+        var newRoot = ":root {\n" + decls + "\n  --font: " + fontStack + ";\n}";
+        var updated = /:root\s*\{[^}]*\}/.test(original)
+          ? original.replace(/:root\s*\{[^}]*\}/, newRoot)
+          : newRoot + "\n\n" + original;
+        var blob = new Blob([updated], { type: "text/css" });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement("a");
+        a.href = url;
+        a.download = "styles.css";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+        status.textContent = "서버 없음 → styles.css를 다운로드했어요 (slides/assets/styles.css 자리에 덮어써주세요)";
+      })
+      .catch(function (e) {
+        status.textContent = "실패: " + (e && e.message ? e.message : e);
+      });
+  }
+
+  /* ------------------------------------------------------------------ */
   /* 툴바 UI                                                              */
   /* ------------------------------------------------------------------ */
 
@@ -198,68 +601,83 @@
     style.id = UI_ID + "_style";
     style.textContent =
       "#" + UI_ID + " .cebar{position:fixed;top:0;left:0;right:0;z-index:999999;" +
-      "display:flex;flex-wrap:wrap;align-items:center;gap:5px;background:#1b1c20;" +
-      "border-bottom:1px solid #34363d;padding:6px 10px;" +
+      "display:flex;flex-wrap:wrap;align-items:center;gap:6px;background:#1b1c20;" +
+      "border-bottom:1px solid #34363d;padding:7px 10px;" +
       "font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;font-size:12px;}" +
-      "#" + UI_ID + " button{font-family:inherit;font-size:12px;color:#eceded;background:#2a2c33;" +
-      "border:1px solid #3c3e46;border-radius:4px;padding:5px 9px;cursor:pointer;line-height:1.2;white-space:nowrap;}" +
-      "#" + UI_ID + " button:hover{border-color:#ff6b4a;color:#ff6b4a;}" +
-      "#" + UI_ID + " button:disabled{opacity:.35;cursor:default;}" +
-      "#" + UI_ID + " button:disabled:hover{border-color:#3c3e46;color:#eceded;}" +
-      "#" + UI_ID + " .cesep{width:1px;height:18px;background:#3c3e46;margin:0 3px;}" +
-      "#" + UI_ID + " .celabel{color:#71747c;padding:0 1px;}" +
-      "#" + UI_ID + " .cestatus{margin-left:auto;color:#8a8d95;white-space:nowrap;}" +
-      "#" + UI_ID + " .ceswatch{width:18px;height:18px;border-radius:4px;border:1px solid #45474f;padding:0;cursor:pointer;}" +
-      "#" + UI_ID + " input[type=color]{width:24px;height:24px;padding:0;border:1px solid #45474f;" +
-      "border-radius:4px;background:none;cursor:pointer;}" +
-      "#" + UI_ID + " select{font-family:inherit;font-size:12px;color:#eceded;background:#2a2c33;" +
-      "border:1px solid #3c3e46;border-radius:4px;padding:5px 6px;cursor:pointer;max-width:108px;}" +
-      "#" + UI_ID + " button.ai-btn{border-color:#5a4a8f;color:#c9b8ff;}" +
-      "#" + UI_ID + " button.ai-btn:hover{border-color:#a78bfa;color:#a78bfa;}" +
-      // 예전엔 툴바 바로 아래 전체 폭 바 형태라 챗봇을 열면 슬라이드가 위에서부터
-      // 가려/밀리는 느낌이 컸다. 지금은 화면 중앙에 뜨는 독립된 모달 창으로 바꿔서
-      // 슬라이드 레이아웃과 완전히 분리하고, 뒤에 반투명 백드롭을 깔아 클릭하거나
-      // Esc를 누르면 닫히게 한다(진짜 모달 다이얼로그처럼 동작).
-      "#" + AI_BACKDROP_ID + "{position:fixed;inset:0;z-index:999998;display:none;" +
+      // 관련된 버튼들을 옅은 배경의 "그룹" 안에 모아서, 파워포인트/피그마 리본
+      // 툴바처럼 어디까지가 한 기능 묶음인지 한눈에 들어오게 한다.
+      "#" + UI_ID + " .cegroup{display:flex;align-items:center;gap:1px;background:#20222a;" +
+      "border:1px solid #2c2e36;border-radius:8px;padding:2px;}" +
+      "#" + UI_ID + " button{font-family:inherit;font-size:12px;color:#dcdee3;background:transparent;" +
+      "border:1px solid transparent;border-radius:6px;padding:6px 8px;cursor:pointer;line-height:1;" +
+      "white-space:nowrap;display:inline-flex;align-items:center;gap:5px;}" +
+      "#" + UI_ID + " .cegroup button{padding:6px;}" +
+      "#" + UI_ID + " .cegroup button.has-label{padding:6px 9px 6px 7px;}" +
+      "#" + UI_ID + " button:hover{background:#33353e;color:#fff;}" +
+      "#" + UI_ID + " button:active{background:#3c3e48;}" +
+      "#" + UI_ID + " button.is-active{background:#3a2c26;color:#ff8b6b;box-shadow:inset 0 0 0 1px #ff6b4a55;}" +
+      "#" + UI_ID + " button:disabled{opacity:.32;cursor:default;}" +
+      "#" + UI_ID + " button:disabled:hover{background:transparent;color:#dcdee3;}" +
+      "#" + UI_ID + " .cesep{width:1px;height:22px;background:#34363d;margin:0 2px;flex:none;}" +
+      "#" + UI_ID + " .cestatus{margin-left:auto;color:#8a8d95;white-space:nowrap;font-size:11.5px;}" +
+      "#" + UI_ID + " .ceswatch{width:19px;height:19px;border-radius:50%;border:1.5px solid #3c3e46;" +
+      "padding:0;cursor:pointer;box-shadow:0 0 0 1px #0000;}" +
+      "#" + UI_ID + " .ceswatch:hover{border-color:#ff6b4a;transform:scale(1.08);}" +
+      "#" + UI_ID + " .ceswatch[data-bg]{border-radius:6px;}" +
+      "#" + UI_ID + " input[type=color]{width:23px;height:23px;padding:0;border:1.5px solid #3c3e46;" +
+      "border-radius:50%;background:none;cursor:pointer;}" +
+      "#" + UI_ID + " select{font-family:inherit;font-size:11.5px;color:#dcdee3;background:#20222a;" +
+      "border:1px solid #34363d;border-radius:6px;padding:6px 7px;cursor:pointer;max-width:100px;height:31px;" +
+      "box-sizing:border-box;}" +
+      "#" + UI_ID + " .cestepper{display:flex;align-items:center;gap:0;}" +
+      "#" + UI_ID + " .cestepper > .ce-icon{opacity:.7;margin:0 5px 0 3px;}" +
+      "#" + UI_ID + " button.ai-btn{color:#c9b8ff;background:linear-gradient(180deg,#3a2f57,#302650);" +
+      "border-color:#5a4a8f;font-weight:700;}" +
+      "#" + UI_ID + " button.ai-btn:hover{border-color:#a78bfa;color:#e6ddff;" +
+      "background:linear-gradient(180deg,#453769,#352a5c);}" +
+      "#" + UI_ID + " button.save-btn{color:#1b1c20;background:#ff6b4a;border-color:#ff6b4a;font-weight:700;}" +
+      "#" + UI_ID + " button.save-btn:hover{background:#ff7f61;border-color:#ff7f61;color:#1b1c20;}" +
+      "#" + UI_ID + " .ce-icon{display:block;flex:none;}" +
+      // 슬라이드 마스터(테마) 패널 — 중앙 모달 패턴.
+      "#" + THEME_BACKDROP_ID + "{position:fixed;inset:0;z-index:999998;display:none;" +
       "background:rgba(6,7,10,.6);}" +
-      "#" + AI_PANEL_ID + "{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);" +
-      "z-index:999998;display:none;flex-direction:column;width:440px;max-width:92vw;" +
+      "#" + THEME_PANEL_ID + "{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);" +
+      "z-index:999998;display:none;flex-direction:column;width:340px;max-width:92vw;" +
       "max-height:82vh;background:#1b1c20;border:1px solid #34363d;border-radius:14px;" +
       "box-shadow:0 24px 70px rgba(0,0,0,.55);overflow:hidden;" +
       "font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;}" +
-      "#" + AI_PANEL_ID + " .ai-panel-header{display:flex;align-items:center;gap:8px;" +
+      "#" + THEME_PANEL_ID + " .th-panel-header{display:flex;align-items:center;gap:8px;" +
       "padding:12px 14px;border-bottom:1px solid #2b2d33;flex:none;}" +
-      "#" + AI_PANEL_ID + " .ai-title{font-size:12px;font-weight:700;color:#c9b8ff;flex:1;}" +
-      "#" + AI_PANEL_ID + " .ai-close{font-family:inherit;font-size:16px;line-height:1;color:#9a9da5;" +
-      "background:none;border:none;cursor:pointer;padding:2px 4px;border-radius:4px;}" +
-      "#" + AI_PANEL_ID + " .ai-close:hover{color:#ff6b4a;background:#2a2c33;}" +
-      "#" + AI_PANEL_ID + " .ai-context{font-size:11px;color:#8a8d95;padding:8px 14px 0;flex:none;}" +
-      "#" + AI_PANEL_ID + " .ai-body{display:flex;flex-direction:column;gap:8px;padding:10px 14px;" +
+      "#" + THEME_PANEL_ID + " .th-title{display:flex;align-items:center;gap:6px;font-size:12px;" +
+      "font-weight:700;color:#ffb99e;flex:1;}" +
+      "#" + THEME_PANEL_ID + " .th-close{font-family:inherit;line-height:1;color:#9a9da5;" +
+      "display:inline-flex;align-items:center;justify-content:center;" +
+      "background:none;border:none;cursor:pointer;padding:4px;border-radius:4px;}" +
+      "#" + THEME_PANEL_ID + " .th-close:hover{color:#ff6b4a;background:#2a2c33;}" +
+      "#" + THEME_PANEL_ID + " .th-body{display:flex;flex-direction:column;gap:11px;padding:12px 14px;" +
       "overflow-y:auto;flex:1;min-height:0;}" +
-      "#" + AI_PANEL_ID + " .ai-footer{flex:none;padding:10px 14px 14px;border-top:1px solid #2b2d33;" +
-      "display:flex;flex-direction:column;gap:8px;}" +
-      "#" + AI_PANEL_ID + " textarea{width:100%;min-height:52px;resize:vertical;font-family:inherit;" +
-      "font-size:12.5px;color:#eceded;background:#111217;border:1px solid #3c3e46;border-radius:6px;" +
-      "padding:8px 10px;box-sizing:border-box;}" +
-      "#" + AI_PANEL_ID + " .ai-actions{display:flex;align-items:center;gap:8px;}" +
-      "#" + AI_PANEL_ID + " .ai-actions button{font-family:inherit;font-size:12px;color:#eceded;" +
+      "#" + THEME_PANEL_ID + " .th-desc{font-size:11px;color:#8a8d95;line-height:1.5;margin:0;}" +
+      "#" + THEME_PANEL_ID + " .th-label{font-size:11px;color:#9a9da5;margin-bottom:5px;}" +
+      "#" + THEME_PANEL_ID + " .th-presets{display:flex;flex-wrap:wrap;gap:6px;}" +
+      "#" + THEME_PANEL_ID + " .th-preset{display:flex;align-items:center;gap:5px;font-family:inherit;" +
+      "font-size:11px;color:#dcdee3;background:#20222a;border:1px solid #34363d;border-radius:6px;" +
+      "padding:5px 8px;cursor:pointer;}" +
+      "#" + THEME_PANEL_ID + " .th-preset:hover{border-color:#ff6b4a;color:#fff;}" +
+      "#" + THEME_PANEL_ID + " .th-preset-dot{width:12px;height:12px;border-radius:50%;flex:none;" +
+      "border:1px solid rgba(255,255,255,.25);}" +
+      "#" + THEME_PANEL_ID + " .th-color-row{display:flex;align-items:center;justify-content:space-between;" +
+      "gap:8px;font-size:12px;color:#c7cad1;cursor:default;}" +
+      "#" + THEME_PANEL_ID + " .th-color-row input[type=color]{width:28px;height:24px;padding:0;" +
+      "border:1px solid #3c3e46;border-radius:4px;background:#0c0d10;cursor:pointer;}" +
+      "#" + THEME_PANEL_ID + " .th-color-row select{font-family:inherit;font-size:11.5px;color:#dcdee3;" +
+      "background:#20222a;border:1px solid #34363d;border-radius:6px;padding:5px 6px;cursor:pointer;}" +
+      "#" + THEME_PANEL_ID + " .th-footer{flex:none;padding:10px 14px 14px;border-top:1px solid #2b2d33;" +
+      "display:flex;align-items:center;flex-wrap:wrap;gap:8px;}" +
+      "#" + THEME_PANEL_ID + " .th-footer button{font-family:inherit;font-size:12px;color:#eceded;" +
       "background:#2a2c33;border:1px solid #3c3e46;border-radius:4px;padding:6px 12px;cursor:pointer;}" +
-      "#" + AI_PANEL_ID + " .ai-actions button[data-cmd='ai-run']{background:#5a4a8f;border-color:#5a4a8f;" +
-      "color:#fff;font-weight:700;}" +
-      "#" + AI_PANEL_ID + " .ai-actions button:disabled{opacity:.5;cursor:default;}" +
-      "#" + AI_PANEL_ID + " .ai-status{font-size:11.5px;color:#8a8d95;}" +
-      // 챗봇처럼 지난 요청/결과를 말풍선으로 쌓아 보여주는 대화 로그.
-      // 내용이 없으면 flex 컨테이너가 그냥 0높이로 접혀서 평소엔 자리를 차지하지 않는다.
-      "#" + AI_PANEL_ID + " .ai-chat-log{display:flex;flex-direction:column;gap:6px;}" +
-      "#" + AI_PANEL_ID + " .ai-msg{max-width:85%;padding:6px 10px;border-radius:10px;font-size:12px;" +
-      "line-height:1.45;word-break:break-word;}" +
-      "#" + AI_PANEL_ID + " .ai-msg.user{align-self:flex-end;background:#3a2f57;color:#eceded;" +
-      "border:1px solid #5a4a8f;}" +
-      "#" + AI_PANEL_ID + " .ai-msg.assistant{align-self:flex-start;background:#20222a;color:#c7cad1;" +
-      "border:1px solid #34363d;}" +
-      "#" + AI_PANEL_ID + " .ai-msg.error{border-color:#a33a3a;color:#ff9a8a;}" +
-      "#" + AI_PANEL_ID + " .ai-msg img{display:block;max-width:160px;max-height:110px;border-radius:6px;" +
-      "margin-top:4px;}" +
+      "#" + THEME_PANEL_ID + " .th-footer button:hover{border-color:#ff6b4a;color:#ff6b4a;}" +
+      "#" + THEME_PANEL_ID + " .th-footer button.save-btn:hover{color:#1b1c20;}" +
+      "#" + THEME_PANEL_ID + " .th-status{font-size:11px;color:#8a8d95;flex:1;text-align:right;}" +
       "." + ROOT_SELECTOR.replace(".", "") + "[contenteditable='true']{outline:2px dashed #ff6b4a55;outline-offset:-2px;}" +
       ".free-el{cursor:move;outline:1px dashed transparent;}" +
       ".free-el:hover{outline-color:#ff6b4a88;}" +
@@ -285,20 +703,6 @@
       "." + ROOT_SELECTOR.replace(".", "") + "[contenteditable='true'] .free-el--app iframe{pointer-events:none;}" +
       ".free-el-shield{position:absolute;inset:0;z-index:1;background:transparent;display:none;}" +
       "." + ROOT_SELECTOR.replace(".", "") + "[contenteditable='true'] .free-el-shield{display:block;}" +
-      "#" + AI_PANEL_ID + " .ai-stream{display:none;max-height:160px;overflow:auto;margin:0;" +
-      "font-family:'SF Mono',Consolas,'Courier New',monospace;font-size:11px;line-height:1.5;" +
-      "color:#9fe6a0;background:#0c0d10;border:1px solid #2b2d33;border-radius:6px;padding:8px 10px;" +
-      "white-space:pre-wrap;word-break:break-all;}" +
-      // 이미지는 부분 결과(partial_images)가 실제로 도착하는 대로 그대로 보여주되,
-      // 그 위에 오렌지 스캔 라인을 계속 흘려서 "지금 생성되고 있다"는 느낌을 강조한다.
-      "#" + AI_PANEL_ID + " .ai-image-preview-wrap{display:none;position:relative;width:220px;" +
-      "height:140px;overflow:hidden;border:1px solid #2b2d33;border-radius:6px;background:#0c0d10;}" +
-      "#" + AI_PANEL_ID + " .ai-image-preview{display:block;width:100%;height:100%;object-fit:contain;" +
-      "background:#0c0d10;}" +
-      "#" + AI_PANEL_ID + " .ai-scanline{position:absolute;left:0;right:0;top:0;height:3px;" +
-      "background:linear-gradient(90deg,transparent,#ff6b4a,transparent);" +
-      "box-shadow:0 0 10px 2px #ff6b4a99;animation:__cursor_ai_scan 1.6s linear infinite;}" +
-      "@keyframes __cursor_ai_scan{0%{top:0;}100%{top:100%;}}" +
       // 파워포인트의 "도형 서식" 패널처럼, 선택된 요소(도형/텍스트 상자/이미지 등)의
       // 배경·테두리·모서리·투명도·그림자를 직접 슬라이더/색상 선택으로 만질 수 있게
       // 화면 오른쪽에 떠 있는 패널. 선택된 요소가 없으면 자리를 차지하지 않는다.
@@ -335,73 +739,109 @@
     wrap.id = UI_ID;
     wrap.innerHTML =
       '<div class="cebar">' +
-      '<button data-cmd="undo" title="실행 취소 (Ctrl+Z)">↶</button>' +
-      '<button data-cmd="redo" title="다시 실행 (Ctrl+Shift+Z)">↷</button>' +
+      '<div class="cegroup">' +
+      '<button data-cmd="undo" title="실행 취소 (Ctrl+Z)">' + icon("undo-2") + "</button>" +
+      '<button data-cmd="redo" title="다시 실행 (Ctrl+Shift+Z)">' + icon("redo-2") + "</button>" +
+      "</div>" +
+      '<div class="cegroup">' +
+      '<button data-cmd="bold" title="굵게 (Ctrl+B)">' + icon("bold") + "</button>" +
+      '<button data-cmd="italic" title="기울임 (Ctrl+I)">' + icon("italic") + "</button>" +
+      '<button data-cmd="underline" title="밑줄 (Ctrl+U)">' + icon("underline") + "</button>" +
+      '<button data-cmd="hl" title="선택한 텍스트를 검정 박스로 강조">' + icon("highlighter") + "</button>" +
+      '<button data-cmd="unhl" title="강조 해제">' + icon("eraser") + "</button>" +
+      '<button data-cmd="clear-fmt" title="붙여넣기 등으로 섞여 들어온 폰트/색상 서식을 제거하고 순수 텍스트로">' + icon("remove-formatting") + "</button>" +
+      "</div>" +
+      '<div class="cegroup" title="텍스트 정렬">' +
+      '<button data-cmd="justify-left" data-align="left" title="텍스트 왼쪽 정렬">' + icon("align-left") + "</button>" +
+      '<button data-cmd="justify-center" data-align="center" title="텍스트 가운데 정렬">' + icon("align-center") + "</button>" +
+      '<button data-cmd="justify-right" data-align="right" title="텍스트 오른쪽 정렬">' + icon("align-right") + "</button>" +
+      '<button data-cmd="justify-full" data-align="justify" title="텍스트 양쪽 정렬">' + icon("align-justify") + "</button>" +
+      "</div>" +
+      '<div class="cegroup" title="선택한 개체를 슬라이드 기준으로 맞춤">' +
+      '<button data-cmd="obj-align-left" title="개체를 슬라이드 왼쪽에 맞춤">' + icon("align-h-start") + "</button>" +
+      '<button data-cmd="obj-align-center-h" title="개체를 슬라이드 가로 가운데에 맞춤">' + icon("align-h-center") + "</button>" +
+      '<button data-cmd="obj-align-right" title="개체를 슬라이드 오른쪽에 맞춤">' + icon("align-h-end") + "</button>" +
       '<span class="cesep"></span>' +
-      '<button data-cmd="bold" title="굵게"><b>B</b></button>' +
-      '<button data-cmd="underline" title="밑줄"><u>U</u></button>' +
-      '<button data-cmd="hl" title="선택한 텍스트를 검정 박스로 강조">강조</button>' +
-      '<button data-cmd="unhl" title="강조 해제">강조 해제</button>' +
-      '<button data-cmd="clear-fmt" title="붙여넣기 등으로 섞여 들어온 폰트/색상 서식을 제거하고 순수 텍스트로">서식 지우기</button>' +
-      '<span class="cesep"></span>' +
-      '<span class="celabel">글자</span>' +
+      '<button data-cmd="obj-align-top" title="개체를 슬라이드 위쪽에 맞춤">' + icon("align-v-start") + "</button>" +
+      '<button data-cmd="obj-align-center-v" title="개체를 슬라이드 세로 가운데에 맞춤">' + icon("align-v-center") + "</button>" +
+      '<button data-cmd="obj-align-bottom" title="개체를 슬라이드 아래쪽에 맞춤">' + icon("align-v-end") + "</button>" +
+      "</div>" +
+      '<div class="cegroup">' +
       '<select data-cmd="font-family" title="글꼴 바꾸기">' +
       '<option value="">기본 폰트</option>' +
       '<option value="\'Malgun Gothic\',\'Apple SD Gothic Neo\',sans-serif">고딕</option>' +
       '<option value="\'Dotum\',\'돋움\',sans-serif">돋움</option>' +
       '<option value="\'Batang\',\'바탕\',serif">명조(바탕)</option>' +
       '<option value="\'Gungsuh\',\'궁서\',serif">궁서체</option>' +
-      '</select>' +
-      '<button data-cmd="font-minus" title="글자 작게">가-</button>' +
-      '<button data-cmd="font-plus" title="글자 크게">가+</button>' +
+      "</select>" +
+      '<span class="cestepper">' + icon("case-sensitive") +
+      '<button data-cmd="font-minus" title="글자 작게 (Ctrl+Shift+,)">' + icon("minus", 13) + "</button>" +
+      '<button data-cmd="font-plus" title="글자 크게 (Ctrl+Shift+.)">' + icon("plus", 13) + "</button>" +
+      "</span>" +
       '<button class="ceswatch" data-color="#f2f3f5" style="background:#f2f3f5" title="흰색 텍스트"></button>' +
       '<button class="ceswatch" data-color="#ff6b4a" style="background:#ff6b4a" title="포인트 색 텍스트"></button>' +
       '<button class="ceswatch" data-color="#999da5" style="background:#999da5" title="회색 텍스트"></button>' +
       '<input type="color" data-cmd="color-picker" title="색상 직접 선택 (텍스트/도형)" value="#ff6b4a" />' +
-      '<span class="cesep"></span>' +
-      '<span class="celabel">삽입</span>' +
-      '<button data-cmd="add-text" title="자유롭게 배치되는 텍스트 상자 추가">텍스트 상자</button>' +
-      '<button data-cmd="add-rect" title="사각형 도형 추가">사각형</button>' +
-      '<button data-cmd="add-line" title="선 도형 추가">선</button>' +
-      '<button data-cmd="image" title="이미지 삽입 (자유 배치)">이미지</button>' +
-      '<button data-cmd="youtube" title="유튜브 링크 또는 .mp4/.webm 영상 파일 링크 삽입">동영상</button>' +
-      '<button data-cmd="embed" title="dbdiagram·Figma·구글지도 등 &lt;iframe&gt; 임베드 코드/링크 삽입">임베드</button>' +
-      '<span class="cesep"></span>' +
-      '<button class="ai-btn" data-cmd="ai-chat" title="자연어로 요청하면 알아서 슬라이드 내용을 고치거나, 이미지를 그리거나, 인터랙티브 데모를 만듭니다">AI 챗봇</button>' +
-      '<span class="cesep"></span>' +
-      '<span class="celabel">선택 요소</span>' +
-      '<button data-cmd="front" title="맨 앞으로">앞으로</button>' +
-      '<button data-cmd="back" title="맨 뒤로 (겹친 요소는 Alt+클릭으로도 한 칸씩 선택할 수 있어요)">뒤로</button>' +
-      '<button data-cmd="dup" title="복제 (Ctrl+D)">복제</button>' +
-      '<button data-cmd="del-selected" title="삭제 (Delete)">삭제</button>' +
-      '<span class="cesep"></span>' +
-      '<span class="celabel">배경</span>' +
+      "</div>" +
+      '<div class="cegroup">' +
+      '<button class="has-label" data-cmd="add-text" title="자유롭게 배치되는 텍스트 상자 추가">' + icon("type") + "텍스트</button>" +
+      '<button class="has-label" data-cmd="add-rect" title="사각형 도형 추가">' + icon("square") + "사각형</button>" +
+      '<button class="has-label" data-cmd="add-line" title="선 도형 추가">' + icon("line-diagonal") + "선</button>" +
+      '<button class="has-label" data-cmd="image" title="이미지 삽입 (자유 배치)">' + icon("image") + "이미지</button>" +
+      '<button class="has-label" data-cmd="youtube" title="유튜브 링크 또는 .mp4/.webm 영상 파일 링크 삽입">' + icon("video") + "동영상</button>" +
+      '<button class="has-label" data-cmd="embed" title="dbdiagram·Figma·구글지도 등 &lt;iframe&gt; 임베드 코드/링크 삽입">' + icon("code-2") + "임베드</button>" +
+      "</div>" +
+      '<div class="cegroup" title="선택한 요소">' +
+      '<button data-cmd="front" title="맨 앞으로">' + icon("bring-to-front") + "</button>" +
+      '<button data-cmd="back" title="맨 뒤로 (겹친 요소는 Alt+클릭으로도 한 칸씩 선택할 수 있어요)">' + icon("send-to-back") + "</button>" +
+      '<button data-cmd="dup" title="복제 (Ctrl+D)">' + icon("copy") + "</button>" +
+      '<button data-cmd="del-selected" title="삭제 (Delete)">' + icon("trash-2") + "</button>" +
+      "</div>" +
+      '<div class="cegroup" title="이 슬라이드만의 배경색 (슬라이드 마스터보다 우선함)">' +
       '<button class="ceswatch" data-bg="#0c0d10" style="background:#0c0d10" title="기본 배경"></button>' +
       '<button class="ceswatch" data-bg="#0e2438" style="background:#0e2438" title="네이비 배경"></button>' +
       '<button class="ceswatch" data-bg="#000000" style="background:#000000" title="완전 검정"></button>' +
       '<button class="ceswatch" data-bg="#161616" style="background:#161616" title="차콜"></button>' +
-      '<span class="cesep"></span>' +
-      '<button data-cmd="save" style="font-weight:700;">저장</button>' +
+      "</div>" +
+      '<button class="has-label" data-cmd="theme" title="배경/텍스트/포인트 색상·글꼴 등 테마를 전체 슬라이드에 한 번에 적용합니다 (파워포인트의 슬라이드 마스터와 비슷해요)">' + icon("palette") + "슬라이드 마스터</button>" +
+      '<button class="save-btn has-label" data-cmd="save" title="저장 (Ctrl+S)">' + icon("save") + "저장</button>" +
       '<span class="cestatus"></span>' +
       "</div>" +
-      '<div id="' + AI_BACKDROP_ID + '"></div>' +
-      '<div id="' + AI_PANEL_ID + '">' +
-      '<div class="ai-panel-header">' +
-      '<span class="ai-title">AI 챗봇 · 텍스트 · 이미지 · 인터랙티브 데모</span>' +
-      '<button type="button" class="ai-close" data-cmd="ai-cancel" title="닫기 (Esc)">✕</button>' +
+      '<div id="' + THEME_BACKDROP_ID + '"></div>' +
+      '<div id="' + THEME_PANEL_ID + '">' +
+      '<div class="th-panel-header">' +
+      '<span class="th-title">' + icon("palette", 14) + "슬라이드 마스터 · 전체 테마</span>" +
+      '<button type="button" class="th-close" data-cmd="theme-close" title="닫기 (Esc)">' + icon("x", 16) + "</button>" +
       "</div>" +
-      '<div class="ai-context"></div>' +
-      '<div class="ai-body">' +
-      '<div class="ai-chat-log"></div>' +
-      '<pre class="ai-stream"></pre>' +
-      '<div class="ai-image-preview-wrap"><img class="ai-image-preview" alt="생성 중인 이미지 미리보기" /><div class="ai-scanline"></div></div>' +
+      '<div class="th-body">' +
+      '<p class="th-desc">여기서 바꾸면 이 파일(styles.css)을 함께 쓰는 모든 슬라이드에 한 번에 적용됩니다. 슬라이드별로 직접 지정한 배경색 등은 항상 이보다 우선해요.</p>' +
+      '<div class="th-row">' +
+      '<div class="th-label">프리셋</div>' +
+      '<div class="th-presets"></div>' +
       "</div>" +
-      '<div class="ai-footer">' +
-      '<textarea class="ai-input" rows="2" placeholder="예: 이 슬라이드 제목을 더 강하게 바꿔줘 / 오렌지톤 아이콘 그려줘 / 방향키로 조작하는 팩맨 게임 만들어줘"></textarea>' +
-      '<div class="ai-actions">' +
-      '<button data-cmd="ai-run" title="Ctrl+Enter">전송</button>' +
-      '<span class="ai-status"></span>' +
+      '<div class="th-row"><label class="th-color-row"><span>배경</span><input type="color" data-theme="bg" /></label></div>' +
+      '<div class="th-row"><label class="th-color-row"><span>카드/패널 배경</span><input type="color" data-theme="bgPanel" /></label></div>' +
+      '<div class="th-row"><label class="th-color-row"><span>기본 텍스트</span><input type="color" data-theme="text" /></label></div>' +
+      '<div class="th-row"><label class="th-color-row"><span>보조 텍스트</span><input type="color" data-theme="muted" /></label></div>' +
+      '<div class="th-row"><label class="th-color-row"><span>연한 보조 텍스트</span><input type="color" data-theme="muted2" /></label></div>' +
+      '<div class="th-row"><label class="th-color-row"><span>포인트 색상</span><input type="color" data-theme="accent" /></label></div>' +
+      '<div class="th-row"><label class="th-color-row"><span>구분선</span><input type="color" data-theme="line" /></label></div>' +
+      '<div class="th-row">' +
+      '<label class="th-color-row"><span>글꼴</span>' +
+      '<select data-theme="font">' +
+      '<option value="default">기본 (Pretendard)</option>' +
+      '<option value="gothic">고딕</option>' +
+      '<option value="dotum">돋움</option>' +
+      '<option value="batang">명조(바탕)</option>' +
+      '<option value="gungseo">궁서체</option>' +
+      "</select>" +
+      "</label>" +
       "</div>" +
+      "</div>" +
+      '<div class="th-footer">' +
+      '<button type="button" data-cmd="theme-reset" title="마지막으로 저장된 테마로 되돌리기">되돌리기</button>' +
+      '<button type="button" class="save-btn" data-cmd="theme-save" title="모든 슬라이드에 저장">전체 슬라이드에 저장</button>' +
+      '<span class="th-status"></span>' +
       "</div>" +
       "</div>" +
       '<div id="' + STYLE_PANEL_ID + '" title="Alt+클릭: 겹친 요소나 그림/차트 같은 장식 요소도 부분별로 선택해서 서식을 바꿀 수 있어요. Alt+드래그로 이동도 가능해요.">' +
@@ -451,34 +891,50 @@
         applyStyleProp(e.target.getAttribute("data-style"));
         return;
       }
+      if (e.target.hasAttribute("data-theme")) {
+        applyThemeLive(readThemeForm());
+        return;
+      }
       if (e.target.matches('input[type=color]')) applyColor(e.target.value);
     });
     wrap.addEventListener("change", function (e) {
       if (e.target.matches('select[data-cmd="font-family"]')) applyFontFamily(e.target.value);
       if (e.target.hasAttribute("data-style")) applyStyleProp(e.target.getAttribute("data-style"));
+      if (e.target.hasAttribute("data-theme")) applyThemeLive(readThemeForm());
     });
     wrap.addEventListener("keydown", function (e) {
-      if (e.target.matches(".ai-input") && (e.ctrlKey || e.metaKey) && e.key === "Enter") {
-        e.preventDefault();
-        runAi();
-        return;
-      }
       if (e.key === "Escape") {
-        var panel = document.getElementById(AI_PANEL_ID);
-        if (panel && panel.style.display === "flex") closeAiPanel();
+        var themePanel = document.getElementById(THEME_PANEL_ID);
+        if (themePanel && themePanel.style.display === "flex") closeThemePanel();
       }
     });
     wrap.addEventListener("click", function (e) {
-      // 모달 바깥의 반투명 배경을 클릭하면(진짜 모달 다이얼로그처럼) 닫는다.
-      if (e.target.id === AI_BACKDROP_ID) {
-        closeAiPanel();
+      // 테마(슬라이드 마스터) 패널은 진짜 모달이라, 바깥 반투명 배경을 클릭하면 닫힌다.
+      if (e.target.id === THEME_BACKDROP_ID) {
+        closeThemePanel();
+        return;
+      }
+      var presetBtn = e.target.closest(".th-preset");
+      if (presetBtn) {
+        applyThemePresetByKey(presetBtn.getAttribute("data-preset"));
         return;
       }
       var btn = e.target.closest("button");
       if (!btn) return;
       var cmd = btn.getAttribute("data-cmd");
       if (cmd === "bold") { document.execCommand("bold"); commitSoon(); }
+      else if (cmd === "italic") { document.execCommand("italic"); commitSoon(); }
       else if (cmd === "underline") { document.execCommand("underline"); commitSoon(); }
+      else if (cmd === "justify-left") { document.execCommand("justifyLeft"); commitSoon(); updateAlignButtons(); }
+      else if (cmd === "justify-center") { document.execCommand("justifyCenter"); commitSoon(); updateAlignButtons(); }
+      else if (cmd === "justify-right") { document.execCommand("justifyRight"); commitSoon(); updateAlignButtons(); }
+      else if (cmd === "justify-full") { document.execCommand("justifyFull"); commitSoon(); updateAlignButtons(); }
+      else if (cmd === "obj-align-left") alignSelectedFreeEl("left");
+      else if (cmd === "obj-align-center-h") alignSelectedFreeEl("center-h");
+      else if (cmd === "obj-align-right") alignSelectedFreeEl("right");
+      else if (cmd === "obj-align-top") alignSelectedFreeEl("top");
+      else if (cmd === "obj-align-center-v") alignSelectedFreeEl("center-v");
+      else if (cmd === "obj-align-bottom") alignSelectedFreeEl("bottom");
       else if (cmd === "hl") { wrapSelection("hl-box"); commitSoon(); }
       else if (cmd === "unhl") { unwrapHighlight(); commitSoon(); }
       else if (cmd === "clear-fmt") clearFormatting();
@@ -490,9 +946,10 @@
       else if (cmd === "image") insertImage();
       else if (cmd === "youtube") insertYoutube();
       else if (cmd === "embed") insertEmbed();
-      else if (cmd === "ai-chat") toggleAiPanel();
-      else if (cmd === "ai-run") runAi();
-      else if (cmd === "ai-cancel") closeAiPanel();
+      else if (cmd === "theme") toggleThemePanel();
+      else if (cmd === "theme-close") closeThemePanel();
+      else if (cmd === "theme-reset") resetThemeForm();
+      else if (cmd === "theme-save") saveTheme();
       else if (cmd === "front") { var s1 = getSelectedFreeEl(); if (s1) bringToFront(s1); }
       else if (cmd === "back") { var s2 = getSelectedFreeEl(); if (s2) sendToBack(s2); }
       else if (cmd === "dup") duplicateSelected();
@@ -511,8 +968,10 @@
 
   /* ------------------------------------------------------------------ */
   /* AI로 작성 (Claude) / AI 이미지 생성 (OpenAI)                              */
-  /* 실제 API 키는 서버(server.js)의 .env에서만 읽고 사용하며,                    */
-  /* 브라우저에는 절대 전달되지 않는다. 이 파일은 로컬 서버로 프록시 요청만 보낸다.      */
+  /* 기본적으로는 로컬 서버(server.js)의 .env에 있는 키를 쓰고, 브라우저에는     */
+  /* 전달되지 않는다. 다만 사용자가 "API 키" 패널에 자기 키를 직접 입력해두면    */
+  /* (예: 서버를 못 띄우는 발표장/깃허브 페이지) 그 요청에 한해서는 서버를 거치지 */
+  /* 않고 이 파일 안의 다이렉트 API 모드가 브라우저에서 바로 호출한다.          */
   /* ------------------------------------------------------------------ */
 
   function getCleanRootHtml() {
@@ -521,97 +980,6 @@
     var clone = root.cloneNode(true);
     stripFreeElChrome(clone);
     return clone.innerHTML;
-  }
-
-  // AI(텍스트 작성/챗봇 라우팅)에게 "지금 슬라이드에 뭐가 있는지" 참고자료로
-  // 줄 때 쓰는 버전. getCleanRootHtml()을 그대로 보내면 두 가지 문제가 있다:
-  // 1) AI가 생성한 이미지/인터랙티브 데모(iframe srcdoc) 안의 base64 데이터까지
-  //    통째로 딸려가서 슬라이드 하나가 수십만~수백만 바이트까지 커진 경우
-  //    Claude의 입력 토큰 한도(20만)를 넘겨 "prompt is too long"으로 실패한다.
-  // 2) 사용자가 클립보드로 붙여넣거나 직접 추가한 자유배치 요소(.free-el —
-  //    이미지/도형/텍스트 상자/영상/임베드/데모)를 AI가 "텍스트 정리/꾸미기"
-  //    같은 요청으로 슬라이드 전체를 다시 쓸 때 같이 지워버리는 문제가 있다
-  //    (AI는 실제 이미지 데이터를 모르니 재현할 수 없어서 통째로 빠뜨린다).
-  // 그래서 free-el은 AI 컨텍스트에서 아예 통째로 제외한다 — 어차피 AI 응답을
-  // 적용할 때 원래 있던 free-el들을 그대로 다시 얹어서 절대 사라지지 않게
-  // 처리하므로(applyAiStructuralHtml), AI가 이 부분을 볼 필요 자체가 없다.
-  function getAiContextHtml() {
-    var root = getRoot();
-    if (!root) return "";
-    var clone = root.cloneNode(true);
-    stripFreeElChrome(clone);
-    var freeElCount = clone.querySelectorAll(":scope > .free-el").length;
-    clone.querySelectorAll(".free-el").forEach(function (el) { el.remove(); });
-    var html = clone.innerHTML;
-    if (freeElCount) {
-      html +=
-        "\n<!-- 참고: 이 슬라이드에는 사용자가 직접 배치한 이미지/도형/텍스트상자/영상 등 " +
-        freeElCount + "개가 더 있지만(위 내용에는 생략됨), 그대로 유지되니 신경 쓰지 않아도 됩니다. -->";
-    }
-    return html;
-  }
-
-  // AI 패널에 "지금 AI에게 어떤 맥락이 전달되는지"를 눈에 보이게 표시해서,
-  // 맥락이 비어있다면(= 아직 부모 창에서 정보를 못 받았다면) 사용자가 바로 알 수 있게 한다.
-  function updateAiContextLine() {
-    var panel = document.getElementById(AI_PANEL_ID);
-    if (!panel) return;
-    var line = panel.querySelector(".ai-context");
-    if (!line) return;
-    if (!deckContext) {
-      line.textContent = "";
-      return;
-    }
-    var pos = (deckContext.currentIndex + 1) + "/" + deckContext.total;
-    var parts = ["컨텍스트: " + pos];
-    if (deckContext.currentAct) parts.push(deckContext.currentAct);
-    if (deckContext.deckTitle) parts.push(deckContext.deckTitle);
-    line.textContent = parts.join(" · ");
-  }
-
-  function toggleAiPanel() {
-    var panel = document.getElementById(AI_PANEL_ID);
-    if (!panel) return;
-    if (panel.style.display === "flex") {
-      closeAiPanel();
-      return;
-    }
-    panel.style.display = "flex";
-    var backdrop = document.getElementById(AI_BACKDROP_ID);
-    if (backdrop) backdrop.style.display = "block";
-    updateAiContextLine();
-    panel.querySelector(".ai-input").focus();
-  }
-
-  function closeAiPanel() {
-    var panel = document.getElementById(AI_PANEL_ID);
-    if (panel) panel.style.display = "none";
-    var backdrop = document.getElementById(AI_BACKDROP_ID);
-    if (backdrop) backdrop.style.display = "none";
-  }
-
-  // 대화 로그에 말풍선 하나를 추가한다. role은 "user" 또는 "assistant"(에러면
-  // "assistant error")이고, imgSrc를 주면 그 이미지도 말풍선 안에 함께 보여준다.
-  // 사용자가 입력한 프롬프트를 그대로 담을 수 있어서 textContent로만 채워
-  // 마크업 삽입(HTML 인젝션) 위험 없이 안전하게 렌더링한다.
-  function appendChatMsg(panel, role, text, imgSrc) {
-    var log = panel.querySelector(".ai-chat-log");
-    if (!log) return null;
-    var msg = document.createElement("div");
-    msg.className = "ai-msg " + role;
-    if (text) {
-      var p = document.createElement("div");
-      p.textContent = text;
-      msg.appendChild(p);
-    }
-    if (imgSrc) {
-      var img = document.createElement("img");
-      img.src = imgSrc;
-      msg.appendChild(img);
-    }
-    log.appendChild(msg);
-    log.scrollTop = log.scrollHeight;
-    return msg;
   }
 
   // Claude가 응답 맨 앞에 <!-- root-class: hook --> 같은 주석을 남기면
@@ -629,262 +997,6 @@
     return html.slice(m[0].length);
   }
 
-  // 서버가 붙여줄 수 있는 ```html 코드펜스만 제거한다 (실제 정리는
-  // 서버에서 하지 않고, 스트리밍이 끝난 뒤 여기서 한 번만 처리한다).
-  function cleanAiHtmlClient(raw) {
-    var s = String(raw || "").trim();
-    s = s.replace(/^```(?:html)?\s*/i, "").replace(/```\s*$/i, "");
-    return s.trim();
-  }
-
-  // /api/ai/text, /api/ai/app 둘 다 text/plain 스트림으로 응답한다.
-  // 델타가 도착할 때마다 onChunk(누적된 전체 텍스트)를 호출해서 AI 패널에
-  // "타이핑되듯" 생성 과정을 그대로 보여줄 수 있게 하고, 스트림이 끝나면
-  // 최종 텍스트로 resolve한다. 서버가 스트림을 시작하기 전에 실패하면
-  // (예: API 키 없음) application/json 에러 응답이 오므로 그 경우엔 reject한다.
-  function streamAiText(url, body, onChunk) {
-    return fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }).then(function (res) {
-      var contentType = res.headers.get("content-type") || "";
-      if (!res.ok || contentType.indexOf("application/json") === 0) {
-        return res.json().then(function (data) {
-          throw new Error((data && data.error) || "HTTP " + res.status);
-        });
-      }
-      if (!res.body || !res.body.getReader) {
-        return res.text().then(function (full) {
-          onChunk(full);
-          return full;
-        });
-      }
-      var reader = res.body.getReader();
-      var decoder = new TextDecoder();
-      var full = "";
-      function pump() {
-        return reader.read().then(function (result) {
-          if (result.done) return full;
-          full += decoder.decode(result.value, { stream: true });
-          onChunk(full);
-          return pump();
-        });
-      }
-      return pump();
-    });
-  }
-
-  // 서버가 이미지 생성 이벤트를 한 줄에 하나씩 완결된 JSON으로 흘려보내는
-  // NDJSON 스트림을 읽는다(줄바꿈으로 이벤트 구분). 청크가 줄 중간에서 끊겨도
-  // 되도록 마지막 미완성 줄은 버퍼에 남겨뒀다가 다음 청크와 합쳐서 파싱한다.
-  function streamNdjson(url, body, onEvent) {
-    return fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }).then(function (res) {
-      var contentType = res.headers.get("content-type") || "";
-      if (!res.ok || contentType.indexOf("application/json") === 0) {
-        return res.json().then(function (data) {
-          throw new Error((data && data.error) || "HTTP " + res.status);
-        });
-      }
-      var reader = res.body.getReader();
-      var decoder = new TextDecoder();
-      var buffer = "";
-      function handleLine(line) {
-        if (!line.trim()) return;
-        try {
-          onEvent(JSON.parse(line));
-        } catch (e) {
-          // 불완전한 줄은 조용히 무시
-        }
-      }
-      function pump() {
-        return reader.read().then(function (result) {
-          if (result.done) {
-            handleLine(buffer);
-            return;
-          }
-          buffer += decoder.decode(result.value, { stream: true });
-          var lines = buffer.split("\n");
-          buffer = lines.pop();
-          lines.forEach(handleLine);
-          return pump();
-        });
-      }
-      return pump();
-    });
-  }
-
-  // Claude가 app 생성 시 {{IMAGE_1}}, {{IMAGE_2}}... 형태로 남긴 플레이스홀더를
-  // 실제 생성 이미지의 data URL로 치환한다(오래된 순서대로 1번부터 매핑).
-  function applyImagePlaceholders(html) {
-    if (!aiGeneratedImages.length) return html;
-    return html.replace(/\{\{\s*IMAGE_(\d+)\s*\}\}/g, function (m, n) {
-      var idx = parseInt(n, 10) - 1;
-      return aiGeneratedImages[idx] || "";
-    });
-  }
-
-  // 버튼 하나로 들어온 자연어 요청을 실제로 처리한다. action은 /api/ai/route가
-  // 판단해서 넘겨준 "text" | "image" | "app" 중 하나. 세 경우 모두 기존에 쓰던
-  // 스트리밍 파이프라인을 그대로 재사용하고, 끝나면 대화 로그에 결과를 남긴다.
-  // detail은 /api/ai/route가 미리 구체화해준 설명으로, "image" 단계에서는
-  // 사용자의 (보통 모호한) 문장 대신 이 detail을 실제 이미지 프롬프트로 쓴다.
-  function runAiAction(panel, action, prompt, detail) {
-    var status = panel.querySelector(".ai-status");
-    var streamEl = panel.querySelector(".ai-stream");
-    var previewWrap = panel.querySelector(".ai-image-preview-wrap");
-    var previewImg = panel.querySelector(".ai-image-preview");
-
-    if (action === "image") {
-      var imagePrompt = detail && detail.trim() ? detail.trim() : prompt;
-      // gpt-image 계열은 실제로 완성 전 흐릿한 중간 결과 이미지를 몇 장 먼저
-      // 보내준다(partial_images). 그걸 그대로 미리보기에 반영해서, 점점 선명한
-      // 이미지로 "스캔되어 나타나는" 효과를 진짜 생성 과정으로 보여준다.
-      status.textContent = "이미지 생성 중…";
-      previewImg.removeAttribute("src");
-      previewWrap.style.display = "block";
-      return streamNdjson("/api/ai/image", { prompt: imagePrompt, deckContext: deckContext }, function (evt) {
-        if (!evt || !evt.b64) return;
-        previewImg.src = "data:image/png;base64," + evt.b64;
-        status.textContent =
-          evt.phase === "done" ? "마무리 중…" : "이미지 생성 중… (미리보기 " + ((evt.index || 0) + 1) + ")";
-      })
-        .then(function () {
-          previewWrap.style.display = "none";
-          var finalSrc = previewImg.getAttribute("src");
-          if (!finalSrc) {
-            status.textContent = "실패: 이미지를 받지 못했습니다";
-            appendChatMsg(panel, "assistant error", "이미지를 받지 못했습니다.", null);
-            return;
-          }
-          addFreeImage(finalSrc);
-          // 방금 만든 이미지를 기억해뒀다가, 이어지는(또는 나중의) "app" 단계에서
-          // {{IMAGE_n}} 플레이스홀더로 그대로 재사용할 수 있게 한다.
-          aiGeneratedImages.push(finalSrc);
-          if (aiGeneratedImages.length > AI_IMAGE_MEMORY) aiGeneratedImages.shift();
-          status.textContent = "완료 · 이미지가 삽입되었습니다";
-          var note = imagePrompt !== prompt ? "이미지를 만들어 슬라이드에 넣었습니다. (" + imagePrompt + ")" : "이미지를 만들어 슬라이드에 넣었습니다.";
-          appendChatMsg(panel, "assistant", note, finalSrc);
-        })
-        .catch(function (err) {
-          previewWrap.style.display = "none";
-          throw err;
-        });
-    }
-
-    // "text"(슬라이드 작성/수정)와 "app"(인터랙티브 데모/게임)은 둘 다 Claude가
-    // 생성하는 과정을 실시간 스트리밍으로 보여준다. 완성되기 전까지는 아직
-    // 유효한 HTML이 아닐 수 있어서 실제 슬라이드에는 적용하지 않고, 패널 안의
-    // 코드 미리보기 창에만 그대로 흘려보낸 뒤 끝났을 때 한 번에 적용한다.
-    var isApp = action === "app";
-    status.textContent = isApp ? "인터랙티브 데모를 만들고 있어요…" : "AI가 작성 중…";
-    streamEl.style.display = "block";
-    streamEl.textContent = "";
-
-    var endpoint = isApp ? "/api/ai/app" : "/api/ai/text";
-    // 앱 단계에는 "지금 몇 장의 생성 이미지를 재료로 쓸 수 있는지"만 알려준다.
-    // 실제 base64 데이터는 절대 프롬프트에 넣지 않고(토큰 낭비 + 실수로 잘못
-    // 베껴 쓸 위험), Claude가 {{IMAGE_1}} 같은 플레이스홀더만 쓰게 한 뒤
-    // 아래 완료 처리에서 클라이언트가 직접 실제 데이터로 치환한다.
-    var requestBody = isApp
-      ? { prompt: prompt, deckContext: deckContext, imageCount: aiGeneratedImages.length }
-      : { prompt: prompt, html: getAiContextHtml(), deckContext: deckContext };
-
-    return streamAiText(endpoint, requestBody, function (full) {
-      streamEl.textContent = full;
-      streamEl.scrollTop = streamEl.scrollHeight;
-    })
-      .then(function (full) {
-        streamEl.style.display = "none";
-        var cleaned = cleanAiHtmlClient(full);
-        if (!cleaned) {
-          status.textContent = "실패: AI가 빈 응답을 반환했습니다";
-          appendChatMsg(panel, "assistant error", "AI가 빈 응답을 반환했습니다.", null);
-          return;
-        }
-        if (isApp) {
-          addFreeApp(applyImagePlaceholders(cleaned));
-          status.textContent = "완료 · 데모가 슬라이드에 삽입되었습니다 (발표 모드에서 바로 조작할 수 있어요)";
-          appendChatMsg(panel, "assistant", "인터랙티브 데모를 만들어 슬라이드에 넣었습니다.", null);
-        } else {
-          // 슬라이드 구조 콘텐츠를 통째로 갈아치우므로, 이전에 선택돼 있던 요소는
-          // 더 이상 DOM에 없을 수 있다 — 서식 패널이 죽은 참조를 들고 있지
-          // 않도록 선택을 초기화한다. (직접 배치한 이미지/도형/텍스트 상자는
-          // applyAiStructuralHtml이 그대로 보존한다.)
-          selectFreeEl(null);
-          selectStructEl(null);
-          applyAiStructuralHtml(applyRootClassDirective(cleaned));
-          status.textContent = "완료 · 직접 배치한 이미지·도형은 그대로 유지돼요 (마음에 들지 않으면 Ctrl+Z)";
-          appendChatMsg(panel, "assistant", "슬라이드 내용을 수정했습니다. (직접 배치한 이미지·도형·텍스트 상자는 유지됩니다)", null);
-        }
-        snapshot();
-      })
-      .catch(function (err) {
-        streamEl.style.display = "none";
-        throw err;
-      });
-  }
-
-  // steps를 순서대로(앞 단계가 끝나야 다음 단계 시작) 실행한다. "정리해주고
-  // 이미지로도 보충해줘"처럼 한 요청에 여러 작업이 섞여 있을 때 쓰인다.
-  function runAiSteps(panel, steps, prompt) {
-    var status = panel.querySelector(".ai-status");
-    return steps.reduce(function (chain, step, idx) {
-      return chain.then(function () {
-        if (steps.length > 1) {
-          status.textContent = "(" + (idx + 1) + "/" + steps.length + ") 처리 중…";
-        }
-        return runAiAction(panel, step.action, prompt, step.detail);
-      });
-    }, Promise.resolve());
-  }
-
-  function runAi() {
-    var panel = document.getElementById(AI_PANEL_ID);
-    if (!panel) return;
-    var input = panel.querySelector(".ai-input");
-    var status = panel.querySelector(".ai-status");
-    var runBtn = panel.querySelector('[data-cmd="ai-run"]');
-    if (runBtn.disabled) return;
-    var prompt = input.value.trim();
-    if (!prompt) {
-      status.textContent = "프롬프트를 입력해주세요";
-      return;
-    }
-    runBtn.disabled = true;
-    input.value = "";
-    appendChatMsg(panel, "user", prompt, null);
-    status.textContent = "무엇을 만들지 판단하고 있어요…";
-
-    // 텍스트/이미지/앱 버튼을 따로 두지 않고, 이 짧은 분류 호출로 Claude가
-    // 요청을 몇 개의 단계로 쪼갤지 먼저 판단하게 한 다음(예: 텍스트 정리 +
-    // 보충 이미지) 각 단계를 해당 파이프라인으로 순서대로 이어간다. 분류
-    // 자체가 실패해도(네트워크 문제 등) 가장 무난한 "text" 한 단계로 시도한다.
-    fetch("/api/ai/route", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: prompt, html: getAiContextHtml(), deckContext: deckContext }),
-    })
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        return (data && data.ok && Array.isArray(data.steps) && data.steps.length) ? data.steps : [{ action: "text", detail: "" }];
-      })
-      .catch(function () { return [{ action: "text", detail: "" }]; })
-      .then(function (steps) { return runAiSteps(panel, steps, prompt); })
-      .then(function () {
-        runBtn.disabled = false;
-      })
-      .catch(function (err) {
-        runBtn.disabled = false;
-        var msg = (err && err.message) || "서버가 켜져 있는지 확인하세요";
-        status.textContent = "실패: " + msg;
-        appendChatMsg(panel, "assistant error", "실패: " + msg, null);
-      });
-  }
 
   function applyColor(hex) {
     var el = getSelectedFreeEl();
@@ -984,6 +1096,65 @@
       range.insertNode(span);
     }
     sel.removeAllRanges();
+    snapshot();
+  }
+
+  // 지금 캐럿/선택이 어느 정렬 상태인지 툴바 버튼에 눌림 표시로 반영한다.
+  // (파워포인트에서 "왼쪽 정렬" 버튼이 활성화된 채로 유지되는 것과 같은 느낌.)
+  function updateAlignButtons() {
+    var wrap = document.getElementById(UI_ID);
+    if (!wrap) return;
+    var buttons = wrap.querySelectorAll("button[data-align]");
+    if (!buttons.length) return;
+    var states = {};
+    try {
+      states.left = document.queryCommandState("justifyLeft");
+      states.center = document.queryCommandState("justifyCenter");
+      states.right = document.queryCommandState("justifyRight");
+      states.justify = document.queryCommandState("justifyFull");
+    } catch (e) {
+      return;
+    }
+    buttons.forEach(function (btn) {
+      var key = btn.getAttribute("data-align");
+      btn.classList.toggle("is-active", !!states[key]);
+    });
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* 개체 정렬 — 파워포인트의 "맞춤"처럼, 자유 배치 요소를 슬라이드 기준으로       */
+  /* 좌/중/우, 상/중/하로 한 번에 맞춘다. free-el은 항상 left/top을 %로만       */
+  /* 다루므로(드래그 로직과 동일), 현재 화면 위치와 목표 위치의 차이(px)를 구해   */
+  /* %로 환산해서 더해준다 — 기존에 transform 등이 걸려 있어도 안전하다.        */
+  /* ------------------------------------------------------------------ */
+
+  function alignFreeEl(el, mode) {
+    var root = getRoot();
+    if (!root || !el) return;
+    var rootRect = root.getBoundingClientRect();
+    var elRect = el.getBoundingClientRect();
+    if (!rootRect.width || !rootRect.height) return;
+    var curLeft = parseFloat(el.style.left) || 0;
+    var curTop = parseFloat(el.style.top) || 0;
+    var dxPx = 0;
+    var dyPx = 0;
+    if (mode === "left") dxPx = -(elRect.left - rootRect.left);
+    else if (mode === "center-h") dxPx = (rootRect.width - elRect.width) / 2 - (elRect.left - rootRect.left);
+    else if (mode === "right") dxPx = rootRect.width - elRect.width - (elRect.left - rootRect.left);
+    else if (mode === "top") dyPx = -(elRect.top - rootRect.top);
+    else if (mode === "center-v") dyPx = (rootRect.height - elRect.height) / 2 - (elRect.top - rootRect.top);
+    else if (mode === "bottom") dyPx = rootRect.height - elRect.height - (elRect.top - rootRect.top);
+    el.style.left = curLeft + (dxPx / rootRect.width) * 100 + "%";
+    el.style.top = curTop + (dyPx / rootRect.height) * 100 + "%";
+  }
+
+  function alignSelectedFreeEl(mode) {
+    var el = getSelectedFreeEl();
+    if (!el) {
+      setStatus("먼저 정렬할 요소를 선택하세요");
+      return;
+    }
+    alignFreeEl(el, mode);
     snapshot();
   }
 
@@ -1742,6 +1913,11 @@
   document.addEventListener("mouseup", function () {
     if (dragState) snapshot();
     dragState = null;
+    updateAlignButtons();
+  });
+
+  document.addEventListener("keyup", function () {
+    if (isEditing()) updateAlignButtons();
   });
 
   // 새 요소를 삽입하거나 복제할 때(wrap.focus() 호출)도 서식 패널이 그 요소를
@@ -1907,13 +2083,14 @@
     if (el) el.textContent = text;
   }
 
-  function save(wrap) {
-    setStatus("저장 중…");
+  function buildSaveHtml() {
     var clone = document.documentElement.cloneNode(true);
     var ui = clone.querySelector("#" + UI_ID);
     if (ui) ui.remove();
     var uiStyle = clone.querySelector("#" + UI_ID + "_style");
     if (uiStyle) uiStyle.remove();
+    var draftBar = clone.querySelector("#" + LOCAL_DRAFT_BAR_ID);
+    if (draftBar) draftBar.remove();
     var root = clone.querySelector(ROOT_SELECTOR);
     if (root) root.removeAttribute("contenteditable");
     stripFreeElChrome(clone);
@@ -1922,7 +2099,23 @@
     clone.querySelectorAll(".bubble-cell.is-open").forEach(function (el) {
       el.classList.remove("is-open");
     });
-    var html = "<!DOCTYPE html>\n" + clone.outerHTML;
+    return "<!DOCTYPE html>\n" + clone.outerHTML;
+  }
+
+  // 서버(/api/save)가 없거나 응답하지 않는 환경(GitHub Pages 등 정적 호스팅)에서
+  // 쓰는 대안 저장: 이 브라우저의 localStorage에 남겨서 새로고침해도 방금 만진
+  // 내용이 유지되게 하고, 동시에 실제 파일로도 다운로드해서 사용자가 직접
+  // deck 폴더의 원본에 덮어쓸 수 있게 한다.
+  function saveLocally(html) {
+    saveLocalDraft(html);
+    downloadHtml(html);
+    setStatus("서버 없음 → 이 브라우저에 임시 저장 + 파일 다운로드됨 · " + new Date().toLocaleTimeString());
+    showLocalDraftBar(Date.now());
+  }
+
+  function save(wrap) {
+    setStatus("저장 중…");
+    var html = buildSaveHtml();
 
     fetch("/api/save", {
       method: "POST",
@@ -1930,13 +2123,25 @@
       body: JSON.stringify({ file: relFilePath(), html: html }),
     })
       .then(function (r) {
+        var contentType = r.headers.get("content-type") || "";
+        if (!r.ok || contentType.indexOf("application/json") !== 0) {
+          // 404 HTML 페이지 등 API가 아예 없는 응답 — 서버가 없다고 간주한다.
+          throw new Error("no-backend");
+        }
         return r.json();
       })
       .then(function (data) {
-        setStatus(data.ok ? "저장됨 · " + new Date().toLocaleTimeString() : "저장 실패: " + data.error);
+        if (data.ok) {
+          clearLocalDraft();
+          var bar = document.getElementById(LOCAL_DRAFT_BAR_ID);
+          if (bar) bar.remove();
+          setStatus("저장됨 · " + new Date().toLocaleTimeString());
+        } else {
+          setStatus("저장 실패: " + data.error);
+        }
       })
       .catch(function () {
-        setStatus("저장 실패 (서버가 켜져 있는지 확인하세요)");
+        saveLocally(html);
       });
   }
 
@@ -1976,9 +2181,13 @@
     }
     if (data.type === "cursor-editor:deck-context") {
       deckContext = data.context || null;
-      updateAiContextLine();
     }
   });
+
+  // 이 브라우저에 이 슬라이드의 임시 저장본이 남아있으면(서버 없이 저장했던 경우)
+  // 지금 로드된 원본 위에 덮어서 보여준다. 편집 모드가 꺼져 있어도(발표/미리보기
+  // 중이어도) 방금 만진 내용이 그대로 보이는 게 맞으므로 조건 없이 항상 확인한다.
+  restoreLocalDraftIfAny();
 
   if (window.parent && window.parent !== window) {
     window.parent.postMessage({ type: "cursor-editor:ready" }, "*");

@@ -9,15 +9,14 @@
    ========================================================================== */
 
 :root {
-  --bg: #0c0d10;
-  --bg-panel: #16171b;
-  --text: #f2f3f5;
-  --muted: #999da5;
-  --muted-2: #6b6e75;
-  --accent: #ff6b4a;
-  --line: #26282e;
-  --font: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", -apple-system,
-    BlinkMacSystemFont, sans-serif;
+  --bg: #181410;
+  --bg-panel: #231d16;
+  --text: #f6efe6;
+  --muted: #c2ab8e;
+  --muted-2: #8a7863;
+  --accent: #e8a33d;
+  --line: #332a20;
+  --font: 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',-apple-system,BlinkMacSystemFont,sans-serif;
 }
 
 * {

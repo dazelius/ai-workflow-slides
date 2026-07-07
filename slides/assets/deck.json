@@ -231,12 +231,16 @@
         "title": "슈터 게임에서의 피드백"
       },
       {
-        "file": "deck/slide-mr4fpvc78.html",
-        "title": "LevelViewer 공유"
+        "file": "deck/slide-mram6we1w.html",
+        "title": "예시"
       },
       {
         "file": "deck/slide-mr4frmcuy.html",
         "title": "유니티"
+      },
+      {
+        "file": "deck/slide-mr4fpvc78.html",
+        "title": "LevelViewer 공유"
       }
     ]
   },
@@ -264,6 +268,10 @@
         "title": "블록아웃 사례"
       },
       {
+        "file": "deck/slide-mramibyxx.html",
+        "title": "경력 기반"
+      },
+      {
         "file": "deck/slide-mr4ggixay.html",
         "title": "프로시저럴 방식"
       },
@@ -289,6 +297,14 @@
         "title": "처음엔..."
       },
       {
+        "file": "deck/slide-mras59mwy.html",
+        "title": "뭔가 더 해보자"
+      },
+      {
+        "file": "deck/slide-mras3wysg.html",
+        "title": "SQL 화"
+      },
+      {
         "file": "deck/slide-mr9ej8g9f.html",
         "title": "도입 배경"
       },
@@ -297,12 +313,28 @@
         "title": "챗봇 구조"
       },
       {
+        "file": "deck/slide-mranaf9su.html",
+        "title": "무엇을 할 수 있을까"
+      },
+      {
         "file": "deck/slide-mr9fi41v4.html",
         "title": "영상 공유"
       },
       {
+        "file": "deck/slide-mran7hrk2.html",
+        "title": "영상 공유 1"
+      },
+      {
+        "file": "deck/slide-mran56bq5.html",
+        "title": "영상 공유 2"
+      },
+      {
+        "file": "deck/slide-mran9q5i1.html",
+        "title": "영상 공유 - 밸리데이션"
+      },
+      {
         "file": "deck/slide-mr8j0mxuj.html",
-        "title": "테이블 자동화까지.."
+        "title": "영상 공유 3"
       }
     ]
   },
@@ -348,6 +380,10 @@
       {
         "file": "deck/slide-mr9gqgne4.html",
         "title": "그리고 웹 프로토타이핑도 좋습니다"
+      },
+      {
+        "file": "deck/slide-mr9h7r0wn.html",
+        "title": "그리고 웹 프로토타이핑도 좋습니다"
       }
     ]
   },
@@ -385,7 +421,7 @@
     ]
   },
   {
-    "act": "5막 · 사전 질문 Q&A",
+    "act": "사전 질문 Q&A",
     "items": [
       {
         "file": "deck/section-qna.html",
@@ -410,10 +446,6 @@
       {
         "file": "deck/cluster-c-q.html",
         "title": "C. 밸런싱·데이터 — 질문"
-      },
-      {
-        "file": "deck/cluster-c-a.html",
-        "title": "C. 밸런싱·데이터 — 답변"
       },
       {
         "file": "deck/cluster-d-q.html",

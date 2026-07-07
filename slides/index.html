@@ -461,6 +461,14 @@
     background:#111217; border:1px solid var(--line); border-radius:6px; padding:8px 10px;
   }
   .apikey-panel .ak-status { font-size:11px; color:#9fe6a0; min-height:1em; }
+  .apikey-panel .ak-divider { height:1px; background:var(--line); margin:2px 0; }
+  .apikey-panel .ak-local-reset { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .apikey-panel .ak-local-reset-status { font-size:11px; color:var(--muted); flex:1; min-width:0; }
+  .apikey-panel #akLocalResetBtn {
+    font-family:inherit; font-size:12px; color:#e8b988; background:#2a2015;
+    border:1px solid #4a3520; border-radius:6px; padding:7px 12px; cursor:pointer; flex:none;
+  }
+  .apikey-panel #akLocalResetBtn:hover { border-color:#e8b988; }
   .apikey-panel .ak-footer {
     flex:none; padding:10px 14px 14px; border-top:1px solid var(--line);
     display:flex; align-items:center; gap:8px;
@@ -574,6 +582,12 @@
         <input type="password" id="akOpenai" placeholder="sk-..." autocomplete="off" spellcheck="false" />
       </div>
       <div class="ak-status" id="akStatusLine"></div>
+      <div class="ak-divider"></div>
+      <p class="ak-desc">서버 없이 편집하면(슬라이드 저장·순서변경·새 슬라이드·AI 에이전트 작업 등) 실제 파일 대신 <b>이 브라우저에만</b> 임시로 저장됩니다. 발표/테스트가 끝나고 이 브라우저에 남은 임시 저장을 지우고 배포된 원본 상태로 되돌리려면 아래 버튼을 누르세요.</p>
+      <div class="ak-local-reset">
+        <span class="ak-local-reset-status" id="akLocalResetStatus"></span>
+        <button type="button" id="akLocalResetBtn">🧹 로컬 임시저장 초기화</button>
+      </div>
     </div>
     <div class="ak-footer">
       <button type="button" id="akClearBtn">키 지우기</button>
@@ -3191,6 +3205,7 @@
     const keys = getClientApiKeys();
     akClaudeInput.value = keys.claude || "";
     akOpenaiInput.value = keys.openai || "";
+    updateLocalResetStatus();
     updateAkStatusLine();
     akSaveStatus.textContent = "";
     apikeyPanel.style.display = "flex";
@@ -3209,6 +3224,45 @@
     updateAgentContextLine();
     akSaveStatus.textContent = "저장했습니다 (이 브라우저에만)";
   });
+  // 로컬 임시저장 초기화 — 서버 없이 편집하면서 이 브라우저에 쌓인 모든 드래프트
+  // (슬라이드 내용, 순서/매니페스트, 발표 목록, 에이전트 대화, 마지막 위치)를
+  // 지우고 배포된 원본 상태로 되돌린다. API 키·전환효과·노트바 접힘 같은 개인
+  // 설정은 다시 입력하기 번거로우니 건드리지 않는다.
+  const LOCAL_RESET_PREFIXES = [
+    "cursorEditorLocalSave:", // 슬라이드 본문 드래프트(가상 슬라이드 포함)
+    "cursorEditorManifestDraft:", // deck.json / decks.json 순서·구조 드래프트
+    "cursorEditorAgentChat:", // 발표별 에이전트 대화
+    "cursorEditorLastSlide:", // 발표별 마지막으로 보던 슬라이드
+  ];
+  const LOCAL_RESET_EXACT_KEYS = ["cursorEditorActiveDeck"];
+  function countLocalResetKeys() {
+    let n = 0;
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (LOCAL_RESET_EXACT_KEYS.includes(k) || LOCAL_RESET_PREFIXES.some((p) => k.indexOf(p) === 0)) n++;
+    }
+    return n;
+  }
+  function updateLocalResetStatus() {
+    const n = countLocalResetKeys();
+    const status = document.getElementById("akLocalResetStatus");
+    status.textContent = n ? `이 브라우저에 임시 저장된 항목 ${n}개` : "지금은 임시 저장된 내용이 없습니다";
+  }
+  document.getElementById("akLocalResetBtn").addEventListener("click", () => {
+    const n = countLocalResetKeys();
+    if (!n) { updateLocalResetStatus(); return; }
+    if (!window.confirm(`이 브라우저에 임시 저장된 편집 내용(슬라이드 초안 ${n}개 분량)을 전부 지우고 배포된 원본 상태로 되돌릴까요?\n실제 파일/서버 데이터는 원래부터 바뀌지 않았으므로, 지워도 안전합니다.`)) return;
+    const toRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (LOCAL_RESET_EXACT_KEYS.includes(k) || LOCAL_RESET_PREFIXES.some((p) => k.indexOf(p) === 0)) toRemove.push(k);
+    }
+    toRemove.forEach((k) => localStorage.removeItem(k));
+    window.location.hash = "";
+    window.location.reload();
+  });
+  updateLocalResetStatus();
+
   document.getElementById("akClearBtn").addEventListener("click", () => {
     setClientApiKeys({});
     akClaudeInput.value = "";

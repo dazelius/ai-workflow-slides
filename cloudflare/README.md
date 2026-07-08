@@ -15,19 +15,49 @@
 이 저장소 루트에 GitHub Pages용 `CNAME` 파일(`edu.suile.im`)을 이미
 추가해뒀습니다 — 아래 단계 중 2번만 완료하면 GitHub 쪽은 끝입니다.
 
-## 0. 준비 확인
+### `suile.im` 루트는 전혀 건드리지 않습니다
 
-- [ ] `suile.im`이 이미 Cloudflare에 등록돼 있고 네임서버가 Cloudflare로
-      바뀌어 있나요? (Cloudflare 대시보드 → 해당 도메인 → 상단에 "Active"로
-      표시되면 완료된 상태입니다)
-  - 아니라면: Cloudflare 가입 → **Add a Site** → `suile.im` 입력 → 무료
-    플랜 선택 → 안내받은 네임서버 2개를 도메인을 구입한 곳(가비아/후이즈 등)의
-    네임서버 설정에 등록. 반영까지 몇 분~몇 시간 걸릴 수 있습니다.
+`suile.im` 루트 도메인은 이미 Firebase Hosting에 연결돼 있어서, 도메인
+전체를 Cloudflare 네임서버로 옮기면 Firebase 쪽 DNS(호스팅/구글 인증용
+TXT 레코드 등)를 그대로 옮겨 재설정해야 하는 부담이 있습니다.
+
+대신 **`edu` 서브도메인만 Cloudflare에 위임(NS delegation)**하는 방식을
+씁니다 — Cloudflare에서 `edu.suile.im`을 그 자체로 별도의 "Site(존)"로
+추가하면, Cloudflare가 그 서브도메인 전용 네임서버 2개를 내려줍니다.
+도메인을 구입한 곳(후이즈 등)에서 `edu`라는 이름에 대해 **NS 레코드**로
+그 네임서버 2개를 등록하면, `edu.suile.im` 밑으로는 Cloudflare가 권한을
+갖게 되고 `suile.im` 루트와 나머지 레코드(Firebase 관련 A/TXT 등)는
+그대로 안전하게 남습니다.
+
+## 0. 준비 확인 (서브도메인 위임)
+
+- [ ] Cloudflare 대시보드 → **Add a Site** → `edu.suile.im` 입력(주의:
+      `suile.im`이 아니라 `edu.suile.im` 전체를 입력) → 무료 플랜 선택
+- [ ] Cloudflare가 이 존 전용으로 내려주는 네임서버 2개를 확인합니다.
+      (예: `evelyn.ns.cloudflare.com`, `phil.ns.cloudflare.com` — 계정마다
+      값이 다르게 배정되니 실제 대시보드에 표시된 값을 써야 합니다)
+- [ ] 도메인 등록기관(후이즈: 도메인 관리 → 네임서버 고급설정/네임서버
+      호스팅) 안에서 **`NS레코드`(또는 "네임서버 레코드") 탭**을 찾습니다.
+      A레코드나 TXT(SPF)레코드 탭이 아니라 **NS 전용 탭**이어야 위임이
+      됩니다 — TXT로 넣으면 문자열만 저장될 뿐 실제 위임은 되지 않습니다.
+- [ ] 그 NS레코드 탭에서 도메인명에 `edu`, 값에 위에서 받은 네임서버
+      2개를 각각 등록하고 신청합니다.
+- [ ] 반영 확인: 아래 명령으로 `edu.suile.im`의 NS가 Cloudflare
+      네임서버로 나오면 위임이 끝난 상태입니다(보통 몇 분~몇 시간).
+
+  ```powershell
+  Resolve-DnsName -Name edu.suile.im -Type NS -Server 8.8.8.8
+  ```
+
+  Cloudflare 대시보드에서도 해당 Site 상태가 "Active"로 바뀝니다.
 
 ## 1. DNS 레코드 추가 (처음엔 반드시 "DNS only")
 
-1. Cloudflare 대시보드 → `suile.im` → **DNS** → **Add record**
-2. Type: `CNAME`, Name: `edu`, Target: `dazelius.github.io`
+위임이 끝나면 `edu.suile.im` 자체가 Cloudflare의 "존 루트"가 되므로,
+레코드 이름은 `edu`가 아니라 **`@`(루트)** 로 넣습니다.
+
+1. Cloudflare 대시보드 → `edu.suile.im` 존 → **DNS** → **Add record**
+2. Type: `CNAME`, Name: `@`, Target: `dazelius.github.io`
 3. Proxy status는 **처음엔 반드시 회색(DNS only)** 으로 둡니다 — GitHub가
    인증서(HTTPS)를 발급하려면 우리 서버(Cloudflare)를 거치지 않고 도메인이
    GitHub 서버를 직접 가리키는 상태에서 확인해야 하기 때문입니다. 주황색
@@ -54,10 +84,11 @@
 ## 3. 인증서 확인 후 Cloudflare 프록시 켜기
 
 1. GitHub에서 **Enforce HTTPS**가 정상적으로 켜진 걸 확인했다면, 다시
-   Cloudflare **DNS**로 가서 1번에서 만든 `edu` 레코드의 프록시 상태를
-   **주황색(Proxied)** 으로 전환합니다.
-2. `suile.im` → **SSL/TLS** → Overview에서 암호화 모드를 **Full** (또는
-   **Full (strict)**, GitHub 인증서가 유효하므로 strict도 가능)로 설정합니다.
+   Cloudflare `edu.suile.im` 존의 **DNS**로 가서 1번에서 만든 `@` 레코드의
+   프록시 상태를 **주황색(Proxied)** 으로 전환합니다.
+2. `edu.suile.im` 존 → **SSL/TLS** → Overview에서 암호화 모드를 **Full**
+   (또는 **Full (strict)**, GitHub 인증서가 유효하므로 strict도 가능)로
+   설정합니다.
 
 ## 4. Cloudflare Zero Trust 팀 만들기 (처음 한 번만)
 

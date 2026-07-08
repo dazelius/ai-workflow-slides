@@ -359,18 +359,26 @@ function callAnthropicStream(messagesOrText, systemPrompt, maxTokens, onDelta) {
   });
 }
 
+// 429(rate limit)/5xx(과부하)처럼 일시적인 오류는 브라우저 쪽에서 매번
+// "다시 시도"를 누르게 하지 않도록 서버에서도 짧게 자동 재시도한다.
+const RETRYABLE_ANTHROPIC_STATUSES = [429, 500, 502, 503, 529];
+const RETRY_BACKOFF_MS = [1200, 3500];
+
 // 에이전트 도구 호출 루프의 "한 턴"을 위한 비스트리밍 호출. 도구 선택 자체는
 // 사용자에게 타이핑되듯 보여줄 필요가 없는 내부 판단이고, tool_use 블록은
 // 완성된 JSON으로 한 번에 와야 안전하게 파싱할 수 있어서 스트리밍을 쓰지
 // 않는다(실제 슬라이드 본문/이미지/앱 생성처럼 오래 걸리는 부분은 각 도구
 // 실행기 안에서 기존 callAnthropicStream을 그대로 재사용해 계속 스트리밍된다).
-function callAnthropicOnce(messages, systemPrompt, tools, maxTokens) {
+// max_tokens는 도구 입력(예: write_slide의 전체 슬라이드 html)이 중간에
+// 잘리면 그 잘린 JSON을 그대로 파일에 써버릴 위험이 있어 여유 있게 잡는다.
+function callAnthropicOnce(messages, systemPrompt, tools, maxTokens, attempt) {
+  attempt = attempt || 0;
   return new Promise((resolve, reject) => {
     const apiKey = ENV.CLAUDE_API_KEY;
     if (!apiKey) return reject(new Error("CLAUDE_API_KEY가 .env에 없습니다"));
     const payload = JSON.stringify({
       model: ENV.CLAUDE_MODEL || "claude-sonnet-5",
-      max_tokens: maxTokens || 2048,
+      max_tokens: maxTokens || 8192,
       system: systemPrompt,
       thinking: { type: "disabled" },
       tools: tools,
@@ -399,6 +407,11 @@ function callAnthropicOnce(messages, systemPrompt, tools, maxTokens) {
           return reject(new Error("Anthropic 응답 파싱 실패"));
         }
         if (apiRes.statusCode !== 200) {
+          if (RETRYABLE_ANTHROPIC_STATUSES.indexOf(apiRes.statusCode) !== -1 && attempt < RETRY_BACKOFF_MS.length) {
+            return setTimeout(() => {
+              callAnthropicOnce(messages, systemPrompt, tools, maxTokens, attempt + 1).then(resolve, reject);
+            }, RETRY_BACKOFF_MS[attempt]);
+          }
           return reject(new Error((json.error && json.error.message) || "Anthropic API 오류 " + apiRes.statusCode));
         }
         resolve(json);
@@ -661,7 +674,7 @@ const server = http.createServer((req, res) => {
           "Content-Type": "application/json; charset=utf-8",
         });
       }
-      callAnthropicOnce(messages, AI_AGENT_SYSTEM_PROMPT, AGENT_TOOLS, 2048)
+      callAnthropicOnce(messages, AI_AGENT_SYSTEM_PROMPT, AGENT_TOOLS, 8192)
         .then((data) => {
           const content = Array.isArray(data.content) ? data.content : [];
           const toolNames = content.filter((b) => b.type === "tool_use").map((b) => b.name);
@@ -958,8 +971,16 @@ const server = http.createServer((req, res) => {
           });
         }
         if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-          console.log(`슬라이드 삭제됨: ${file}`);
+          // 클라이언트에서 이미 몇 초짜리 "실행취소" 창을 거쳐 확정된 삭제이지만,
+          // 그래도 완전히 지우지 않고 .trash/로 옮겨둔다 — 발표 전날 실수로
+          // 지운 슬라이드를 나중에라도 파일 탐색기에서 직접 복구할 수 있게 하는
+          // 마지막 안전망이다. trashOldFiles()가 30일 지난 것들은 자동 정리한다.
+          const trashDir = path.join(ROOT, ".trash");
+          if (!fs.existsSync(trashDir)) fs.mkdirSync(trashDir, { recursive: true });
+          const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+          const trashPath = path.join(trashDir, `${stamp}__${path.basename(filePath)}`);
+          fs.renameSync(filePath, trashPath);
+          console.log(`슬라이드 삭제됨(.trash/${path.basename(trashPath)}로 이동): ${file}`);
         }
         send(res, 200, JSON.stringify({ ok: true }), {
           "Content-Type": "application/json; charset=utf-8",
@@ -1073,6 +1094,23 @@ const server = http.createServer((req, res) => {
     });
   });
 });
+
+// 삭제된 슬라이드가 쌓여만 있지 않도록, 서버가 뜰 때마다 30일 지난 .trash
+// 항목을 조용히 정리한다(복구는 그 안에 직접 파일 탐색기로 하면 됨).
+function cleanOldTrash() {
+  try {
+    const trashDir = path.join(ROOT, ".trash");
+    if (!fs.existsSync(trashDir)) return;
+    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    for (const name of fs.readdirSync(trashDir)) {
+      const p = path.join(trashDir, name);
+      try {
+        if (fs.statSync(p).mtimeMs < cutoff) fs.unlinkSync(p);
+      } catch (e) {}
+    }
+  } catch (e) {}
+}
+cleanOldTrash();
 
 server.listen(PORT, () => {
   console.log(`슬라이드 에디터 서버 실행 중`);

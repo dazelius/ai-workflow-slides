@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>발표자 보기</title>
+<style>
+  :root {
+    --bg:#0b0c10; --panel:#14161d; --line:#262a35; --text:#f5f6f8;
+    --muted:#9195a3; --accent:#ff6b4a;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin:0; height:100%; background:var(--bg); color:var(--text);
+    font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",-apple-system,sans-serif;
+    overflow:hidden;
+  }
+  .wrap { display:flex; flex-direction:column; height:100vh; }
+
+  .topbar {
+    flex:none; display:flex; align-items:center; gap:14px; padding:10px 18px;
+    background:var(--panel); border-bottom:1px solid var(--line);
+  }
+  .topbar .deck-title { font-size:13px; font-weight:800; color:var(--accent); text-transform:uppercase; letter-spacing:.05em; }
+  .topbar .act-badge {
+    font-size:11px; font-weight:700; color:var(--muted); background:rgba(255,255,255,0.07);
+    border-radius:6px; padding:3px 8px;
+  }
+  .topbar .counter { font-size:13px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .topbar .spacer { flex:1; }
+  .timer {
+    display:flex; align-items:center; gap:8px; font-variant-numeric:tabular-nums;
+  }
+  .timer .t {
+    font-size:22px; font-weight:800; letter-spacing:.02em; min-width:74px; text-align:right;
+  }
+  .timer .t.warn { color:#ffb020; }
+  .timer .t.danger { color:#ff5a5a; }
+  .timer button {
+    background:transparent; border:1px solid var(--line); color:var(--muted); border-radius:6px;
+    font-size:11px; padding:4px 8px; cursor:pointer;
+  }
+  .timer button:hover { color:var(--text); border-color:var(--accent); }
+
+  .body {
+    flex:1; min-height:0; display:flex; gap:14px; padding:14px 18px 0;
+  }
+  .col-main { flex:1.4; min-width:0; display:flex; flex-direction:column; gap:10px; }
+  .col-side { flex:1; min-width:0; display:flex; flex-direction:column; gap:10px; }
+
+  .panel-label {
+    font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.06em;
+  }
+  .slide-title { font-size:16px; font-weight:700; margin:2px 0 6px; }
+
+  .frame-box {
+    flex:1; min-height:0; background:#000; border:1px solid var(--line); border-radius:10px; overflow:hidden;
+    position:relative;
+  }
+  .frame-box iframe { width:100%; height:100%; border:0; display:block; }
+  .frame-box.empty::after {
+    content:"슬라이드 없음"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    color:var(--muted); font-size:13px;
+  }
+
+  .next-box { flex:0 0 34%; display:flex; flex-direction:column; gap:6px; }
+  .next-box .frame-box { opacity:0.82; }
+
+  .notes-box {
+    flex:1; min-height:0; display:flex; flex-direction:column; background:var(--panel);
+    border:1px solid var(--line); border-radius:10px; padding:12px 14px;
+  }
+  .notes-box .panel-label { margin-bottom:6px; }
+  .notes-text {
+    flex:1; min-height:0; overflow-y:auto; font-size:18px; line-height:1.55; white-space:pre-wrap;
+    color:var(--text);
+  }
+  .notes-text.placeholder { color:var(--muted); font-size:14px; }
+
+  .navbar {
+    flex:none; display:flex; align-items:center; gap:10px; padding:14px 18px 18px;
+  }
+  .navbar button {
+    flex:1; background:var(--panel); border:1px solid var(--line); color:var(--text);
+    border-radius:10px; padding:14px 0; font-size:15px; font-weight:700; cursor:pointer;
+  }
+  .navbar button:hover { border-color:var(--accent); color:var(--accent); }
+  .navbar button:disabled { opacity:0.35; cursor:default; }
+  .navbar button:hover:disabled { border-color:var(--line); color:var(--text); }
+  .navbar .hint { flex:none; font-size:11px; color:var(--muted); padding:0 6px; }
+
+  .disconnected {
+    position:fixed; inset:0; background:rgba(11,12,16,0.92); display:none;
+    align-items:center; justify-content:center; flex-direction:column; gap:10px; z-index:50; text-align:center;
+  }
+  .disconnected.show { display:flex; }
+  .disconnected b { font-size:15px; }
+  .disconnected span { font-size:12.5px; color:var(--muted); max-width:360px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <span class="deck-title" id="deckTitle">발표자 보기</span>
+      <span class="act-badge" id="actBadge" style="display:none"></span>
+      <span class="counter" id="counter">- / -</span>
+      <span class="spacer"></span>
+      <div class="timer">
+        <button type="button" id="timerReset" title="타이머 초기화">↺ 초기화</button>
+        <span class="t" id="timerText">00:00</span>
+      </div>
+    </div>
+
+    <div class="body">
+      <div class="col-main">
+        <div>
+          <div class="panel-label">지금 슬라이드</div>
+          <div class="slide-title" id="curTitle">연결 대기 중...</div>
+        </div>
+        <div class="frame-box empty" id="curFrameBox">
+          <iframe id="curFrame" title="current slide"></iframe>
+        </div>
+      </div>
+      <div class="col-side">
+        <div class="next-box">
+          <div class="panel-label">다음 슬라이드</div>
+          <div class="frame-box empty" id="nextFrameBox">
+            <iframe id="nextFrame" title="next slide"></iframe>
+          </div>
+        </div>
+        <div class="notes-box">
+          <div class="panel-label">발표자 노트</div>
+          <div class="notes-text placeholder" id="notesText">발표 화면(index.html) 창에서 이 창을 열면 자동으로 연결됩니다.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="navbar">
+      <button type="button" id="prevBtn">‹ 이전</button>
+      <span class="hint">← → 또는 Space로도 이동</span>
+      <button type="button" id="nextBtn">다음 ›</button>
+    </div>
+  </div>
+
+  <div class="disconnected" id="disconnected">
+    <b>발표 화면과 연결되지 않았습니다</b>
+    <span>이 창은 슬라이드를 보여주는 index.html 창에서 "발표자 보기" 버튼으로 열어야 합니다. 그 창을 닫지 말고 그대로 두세요.</span>
+  </div>
+
+<script>
+  const channel = ("BroadcastChannel" in window) ? new BroadcastChannel("cursor-editor-presenter") : null;
+  const deckTitleEl = document.getElementById("deckTitle");
+  const actBadgeEl = document.getElementById("actBadge");
+  const counterEl = document.getElementById("counter");
+  const curTitleEl = document.getElementById("curTitle");
+  const curFrame = document.getElementById("curFrame");
+  const curFrameBox = document.getElementById("curFrameBox");
+  const nextFrame = document.getElementById("nextFrame");
+  const nextFrameBox = document.getElementById("nextFrameBox");
+  const notesTextEl = document.getElementById("notesText");
+  const timerTextEl = document.getElementById("timerText");
+  const disconnectedEl = document.getElementById("disconnected");
+  const prevBtn = document.getElementById("prevBtn");
+  const nextBtn = document.getElementById("nextBtn");
+  const timerResetBtn = document.getElementById("timerReset");
+
+  if (!channel) {
+    disconnectedEl.classList.add("show");
+    disconnectedEl.querySelector("span").textContent = "이 브라우저는 창 간 실시간 연결(BroadcastChannel)을 지원하지 않습니다. 최신 Chrome/Edge/Firefox를 이용해주세요.";
+  }
+
+  const LOCAL_SAVE_PREFIX = "cursorEditorLocalSave:";
+  function slideAbsPath(file) {
+    return new URL(file, window.location.href).pathname.replace(/^\//, "");
+  }
+  function getLocalDraftHtml(file) {
+    try {
+      const raw = localStorage.getItem(LOCAL_SAVE_PREFIX + slideAbsPath(file));
+      const parsed = raw ? JSON.parse(raw) : null;
+      return parsed && parsed.html ? parsed.html : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function loadInto(frame, box, file, virtual) {
+    if (!file) {
+      box.classList.add("empty");
+      frame.removeAttribute("src");
+      frame.srcdoc = "";
+      return;
+    }
+    box.classList.remove("empty");
+    const draft = virtual ? getLocalDraftHtml(file) : null;
+    if (draft) {
+      frame.removeAttribute("src");
+      frame.srcdoc = draft;
+    } else {
+      frame.removeAttribute("srcdoc");
+      frame.src = file;
+    }
+  }
+
+  let lastConnectedAt = 0;
+  let watchdog = null;
+
+  function markConnected() {
+    lastConnectedAt = Date.now();
+    disconnectedEl.classList.remove("show");
+    clearTimeout(watchdog);
+    watchdog = setTimeout(() => {
+      disconnectedEl.classList.add("show");
+      disconnectedEl.querySelector("span").textContent = "발표 화면(index.html) 창과의 연결이 끊긴 것 같습니다. 그 창이 닫히지 않았는지 확인해주세요.";
+    }, 8000);
+  }
+
+  let timerBase = null; // presentStartedAt (ms epoch) or null
+  let timerRaf = null;
+
+  function renderTimer() {
+    if (!timerBase) {
+      timerTextEl.textContent = "00:00";
+      timerTextEl.classList.remove("warn", "danger");
+      return;
+    }
+    const sec = Math.max(0, Math.floor((Date.now() - timerBase) / 1000));
+    const mm = String(Math.floor(sec / 60)).padStart(2, "0");
+    const ss = String(sec % 60).padStart(2, "0");
+    timerTextEl.textContent = mm + ":" + ss;
+    timerTextEl.classList.toggle("warn", sec >= 20 * 60 && sec < 25 * 60);
+    timerTextEl.classList.toggle("danger", sec >= 25 * 60);
+  }
+  function tick() {
+    renderTimer();
+    timerRaf = setTimeout(tick, 500);
+  }
+  tick();
+
+  function applyState(data) {
+    markConnected();
+    deckTitleEl.textContent = data.deckTitle || "발표자 보기";
+    if (data.act) {
+      actBadgeEl.style.display = "";
+      actBadgeEl.textContent = data.act;
+    } else {
+      actBadgeEl.style.display = "none";
+    }
+    counterEl.textContent = (data.total ? data.idx + 1 : "-") + " / " + (data.total || "-");
+    curTitleEl.textContent = data.title || "(제목 없음)";
+    loadInto(curFrame, curFrameBox, data.file, data.virtual);
+    loadInto(nextFrame, nextFrameBox, data.nextFile, data.nextVirtual);
+    if (data.notes) {
+      notesTextEl.textContent = data.notes;
+      notesTextEl.classList.remove("placeholder");
+    } else {
+      notesTextEl.textContent = "(이 슬라이드에는 노트가 없습니다)";
+      notesTextEl.classList.add("placeholder");
+    }
+    timerBase = data.presentStartedAt || null;
+    renderTimer();
+    prevBtn.disabled = data.idx <= 0;
+    nextBtn.disabled = data.total ? data.idx >= data.total - 1 : false;
+  }
+
+  if (channel) {
+    channel.onmessage = (e) => {
+      const data = e.data || {};
+      if (data.type === "state") applyState(data);
+    };
+    channel.postMessage({ type: "requestState" });
+  }
+
+  function sendNav(action) {
+    if (channel) channel.postMessage({ type: "nav", action });
+  }
+  prevBtn.addEventListener("click", () => sendNav("prev"));
+  nextBtn.addEventListener("click", () => sendNav("next"));
+  timerResetBtn.addEventListener("click", () => { if (channel) channel.postMessage({ type: "timer-reset" }); });
+
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") { e.preventDefault(); sendNav("next"); }
+    else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); sendNav("prev"); }
+  });
+
+  window.addEventListener("beforeunload", () => {
+    clearTimeout(watchdog);
+    clearTimeout(timerRaf);
+  });
+</script>
+</body>
+</html>

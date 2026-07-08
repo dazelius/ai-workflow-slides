@@ -174,6 +174,25 @@
   .toolbar .edit-toggle.on {
     background:var(--accent); border-color:var(--accent); color:#1a0e0a;
   }
+  #presenterViewBtn {
+    width:auto; padding:0 12px; font-size:12.5px; font-weight:700; letter-spacing:.02em; white-space:nowrap;
+  }
+  #presenterViewBtn.linked { border-color:var(--accent); color:var(--accent); }
+
+  .undo-toast {
+    position:fixed; left:50%; bottom:26px; transform:translate(-50%, 16px);
+    display:flex; align-items:center; gap:14px; background:#1b1d24; border:1px solid var(--line);
+    border-radius:10px; padding:11px 14px 11px 16px; box-shadow:0 8px 24px rgba(0,0,0,0.45);
+    font-size:13px; color:var(--text); z-index:400; opacity:0; pointer-events:none;
+    transition:opacity .2s ease, transform .2s ease;
+  }
+  .undo-toast.show { opacity:1; transform:translate(-50%, 0); pointer-events:auto; }
+  .undo-toast span { max-width:44vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .undo-toast .undo-btn {
+    flex:none; background:transparent; border:1px solid var(--accent); color:var(--accent);
+    border-radius:7px; padding:5px 11px; font-size:12.5px; font-weight:700; cursor:pointer; white-space:nowrap;
+  }
+  .undo-toast .undo-btn:hover { background:var(--accent); color:#1a0e0a; }
 
   .stage {
     flex:1; display:flex; align-items:center; justify-content:center;
@@ -228,6 +247,24 @@
     display:block; height:100%; width:0; background:var(--accent); opacity:.75;
     transition:width .25s ease;
   }
+
+  /* 레이저 포인터 — 발표 중 물리 포인터 없이도 화면에서 가리킬 수 있게,
+     L 키로 켜고 끄는 마우스 추적 스포트라이트 점. */
+  .laser-dot {
+    display:none; position:absolute; width:22px; height:22px; border-radius:50%;
+    background:radial-gradient(circle, rgba(255,120,80,0.95) 0%, rgba(255,90,50,0.55) 45%, rgba(255,90,50,0) 76%);
+    box-shadow:0 0 20px 7px rgba(255,90,50,0.5);
+    transform:translate(-50%,-50%); pointer-events:none; z-index:30;
+  }
+  .laser-dot.show { display:block; }
+
+  /* 암전/백지 화면 — PPT처럼 B(암전)/W(백지) 키로 슬라이드를 잠깐 가리고
+     발표자에게 시선을 모을 수 있게 한다. 종료 버튼·진행바는 위에 그대로 뜬다. */
+  .blackout-screen {
+    display:none; position:fixed; inset:0; z-index:16; background:#000;
+  }
+  .blackout-screen.white { background:#fff; }
+  .blackout-screen.show { display:block; }
 
   /* 발표자 노트 — 평소엔 슬라이드 아래 입력 바(접을 수 있음), 슬라이드쇼 중엔
      좌하단 타이머 칩 + N 키로 여닫는 노트 오버레이(청중 화면엔 방해 안 되게 반투명). */
@@ -469,6 +506,23 @@
     border:1px solid #4a3520; border-radius:6px; padding:7px 12px; cursor:pointer; flex:none;
   }
   .apikey-panel #akLocalResetBtn:hover { border-color:#e8b988; }
+
+  .shortcuts-panel { width:460px; }
+  .shortcuts-panel .ak-body { gap:16px; }
+  .sc-group-title {
+    font-size:11px; font-weight:800; color:var(--accent); text-transform:uppercase;
+    letter-spacing:.06em; margin-bottom:6px;
+  }
+  .sc-row {
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding:5px 0; font-size:12.5px; color:#c7cad1; border-top:1px solid rgba(255,255,255,0.05);
+  }
+  .sc-row:first-of-type { border-top:none; }
+  .sc-row span:last-child { flex:none; white-space:nowrap; color:var(--muted); font-size:11.5px; }
+  .sc-row kbd {
+    background:#1e212b; border:1px solid var(--line); border-radius:4px; padding:1px 6px;
+    font-size:11px; color:var(--text); font-family:inherit;
+  }
   .apikey-panel .ak-footer {
     flex:none; padding:10px 14px 14px; border-top:1px solid var(--line);
     display:flex; align-items:center; gap:8px;
@@ -518,7 +572,9 @@
         <option value="zoom">줌</option>
       </select>
       <button id="presentBtn" title="전체화면 슬라이드쇼 (F5)">⛶</button>
-      <span class="hint"><kbd>←</kbd> <kbd>→</kbd> 이동 · 왼쪽 목록 클릭으로 점프 · <kbd>F5</kbd> 슬라이드쇼</span>
+      <button id="presenterViewBtn" title="발표자 전용 창 열기 — 노트·타이머·다음 슬라이드를 발표자만 보는 화면(듀얼 모니터 추천)">🖥️ 발표자 보기</button>
+      <button id="shortcutsBtn" title="키보드 단축키 모아보기 (?)">⌨️</button>
+      <span class="hint"><kbd>←</kbd> <kbd>→</kbd> 이동 · 왼쪽 목록 클릭으로 점프 · <kbd>F5</kbd> 슬라이드쇼 · <kbd>?</kbd> 단축키</span>
     </div>
     <div class="stage">
       <div class="frame-wrap">
@@ -526,6 +582,8 @@
       </div>
       <button class="present-exit" id="presentExit" title="슬라이드쇼 종료 (Esc)">✕</button>
       <div class="present-progress" id="presentProgress"><i></i></div>
+      <div class="laser-dot" id="laserDot"></div>
+      <div class="blackout-screen" id="blackoutScreen"></div>
       <div class="present-notes" id="presentNotes">
         <span class="pn-timer" id="pnTimer">00:00</span>
         <span class="pn-hint">N 노트</span>
@@ -593,6 +651,45 @@
       <button type="button" id="akClearBtn">키 지우기</button>
       <button type="button" class="ak-save" id="akSaveBtn">저장</button>
       <span class="ak-save-status" id="akSaveStatus"></span>
+    </div>
+  </div>
+</div>
+
+<div class="apikey-backdrop" id="shortcutsBackdrop"></div>
+<div class="apikey-panel shortcuts-panel" id="shortcutsPanel">
+  <div class="ak-head">
+    <span class="ak-title">⌨️ 키보드 단축키</span>
+    <button type="button" id="shortcutsCloseBtn" title="닫기 (Esc)">✕</button>
+  </div>
+  <div class="ak-body">
+    <div class="sc-group">
+      <div class="sc-group-title">이동 · 슬라이드쇼</div>
+      <div class="sc-row"><span>이전 / 다음 슬라이드</span><span><kbd>←</kbd> <kbd>→</kbd></span></div>
+      <div class="sc-row"><span>전체화면 슬라이드쇼 시작/종료</span><span><kbd>F5</kbd> · <kbd>Esc</kbd></span></div>
+      <div class="sc-row"><span>슬라이드쇼 중 다음으로</span><span><kbd>Space</kbd> <kbd>Enter</kbd></span></div>
+      <div class="sc-row"><span>발표자 노트 보이기/숨기기</span><span><kbd>N</kbd></span></div>
+      <div class="sc-row"><span>레이저 포인터 켜기/끄기</span><span><kbd>L</kbd></span></div>
+      <div class="sc-row"><span>암전 화면 (다시 누르면 해제)</span><span><kbd>B</kbd></span></div>
+      <div class="sc-row"><span>백지 화면 (다시 누르면 해제)</span><span><kbd>W</kbd></span></div>
+      <div class="sc-row"><span>이 도움말 열기/닫기</span><span><kbd>?</kbd></span></div>
+    </div>
+    <div class="sc-group">
+      <div class="sc-group-title">편집 모드 — 공통</div>
+      <div class="sc-row"><span>저장</span><span><kbd>Ctrl</kbd>+<kbd>S</kbd></span></div>
+      <div class="sc-row"><span>실행취소 / 다시실행</span><span><kbd>Ctrl</kbd>+<kbd>Z</kbd> · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></span></div>
+    </div>
+    <div class="sc-group">
+      <div class="sc-group-title">편집 모드 — 텍스트 선택 중</div>
+      <div class="sc-row"><span>굵게 / 기울임 / 밑줄</span><span><kbd>Ctrl</kbd>+<kbd>B</kbd> <kbd>I</kbd> <kbd>U</kbd></span></div>
+      <div class="sc-row"><span>글자 크게 / 작게</span><span><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>.</kbd> / <kbd>,</kbd></span></div>
+    </div>
+    <div class="sc-group">
+      <div class="sc-group-title">편집 모드 — 도형/이미지 선택 중</div>
+      <div class="sc-row"><span>복제</span><span><kbd>Ctrl</kbd>+<kbd>D</kbd></span></div>
+      <div class="sc-row"><span>복사 / 잘라내기 / 붙여넣기</span><span><kbd>Ctrl</kbd>+<kbd>C</kbd> <kbd>X</kbd> <kbd>V</kbd></span></div>
+      <div class="sc-row"><span>맨 앞으로 / 맨 뒤로 (한 단계는 Alt 함께)</span><span><kbd>Ctrl</kbd>+<kbd>]</kbd> / <kbd>[</kbd></span></div>
+      <div class="sc-row"><span>화살표 키로 조금씩 이동</span><span><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd></span></div>
+      <div class="sc-row"><span>삭제</span><span><kbd>Delete</kbd></span></div>
     </div>
   </div>
 </div>
@@ -681,7 +778,21 @@
   function openDeckMenu() { renderDeckHead(); document.getElementById("deckMenu").classList.add("is-open"); }
   function closeDeckMenu() { document.getElementById("deckMenu").classList.remove("is-open"); }
 
+  // 에이전트가 지금 이 발표의 슬라이드를 도구로 읽고/쓰고 있는 도중에 다른
+  // 발표로 전환하면, 진행 중인 도구 호출이 방금 바뀐 DECK/FLAT(다른 발표!)에
+  // 그대로 적용돼 버려서 엉뚱한 발표가 조용히 망가질 수 있다. 그래서 발표를
+  // 바꾸거나 새로 만들거나 지우는 모든 진입점에서 먼저 에이전트가 쉬고 있는지
+  // 확인한다.
+  function blockIfAgentBusy() {
+    if (typeof agentSendBtn !== "undefined" && agentSendBtn && agentSendBtn.disabled) {
+      window.alert("에이전트가 지금 이 발표를 작업 중입니다. 끝나고 나서(또는 중간 결과가 나온 뒤) 발표를 전환해주세요.");
+      return true;
+    }
+    return false;
+  }
+
   function loadDeckByIdx(i, opts) {
+    if (!(opts && opts.initial) && blockIfAgentBusy()) return Promise.resolve();
     // 떠나는 발표의 에이전트 대화를 먼저 저장해둔다 (발표별로 대화가 유지됨).
     if (!(opts && opts.initial)) {
       try { saveAgentConversation(); } catch (e) {}
@@ -724,6 +835,7 @@
   }
 
   function createNewDeck() {
+    if (blockIfAgentBusy()) return;
     const title = window.prompt("새 발표의 제목을 입력하세요", "새 발표");
     if (title === null || !title.trim()) return;
     const id = "d" + Date.now().toString(36);
@@ -748,6 +860,7 @@
 
   function removeDeckFromRegistry(i) {
     if (DECKS.length <= 1) return;
+    if (blockIfAgentBusy()) return;
     const deck = DECKS[i];
     if (!window.confirm(`"${deck.title}" 발표를 목록에서 제거할까요?\n슬라이드 파일과 매니페스트는 삭제되지 않고 목록에서만 빠집니다.`)) return;
     const wasActive = i === activeDeckIdx;
@@ -774,6 +887,7 @@
   const editToggle = document.getElementById("editToggle");
   const presentBtn = document.getElementById("presentBtn");
   const presentExit = document.getElementById("presentExit");
+  const presenterViewBtn = document.getElementById("presenterViewBtn");
 
   let current = 0;
   let editMode = false;
@@ -884,6 +998,8 @@
     clearTimeout(hideExitTimer);
     presentExit.classList.remove("show");
     stopPresentTimer();
+    toggleLaser(false);
+    setBlackout(null);
   }
 
   function togglePresent() {
@@ -891,6 +1007,54 @@
   }
 
   presentBtn.addEventListener("click", togglePresent);
+
+  /* ------------------------------------------------------------------ */
+  /* 레이저 포인터 — 물리 포인터 없이도 슬라이드쇼 중 화면에서 가리킬 수      */
+  /* 있게, L 키로 마우스 추적 스포트라이트를 켜고 끈다. 슬라이드 본문은      */
+  /* iframe 안에 있어서, editor.js가 마우스 위치를 postMessage로 전달해줘야  */
+  /* 실제 슬라이드 위에서도 점이 따라온다.                                  */
+  /* ------------------------------------------------------------------ */
+
+  const stageEl = document.querySelector(".stage");
+  const laserDot = document.getElementById("laserDot");
+  let laserActive = false;
+
+  function setLaserDotAt(clientX, clientY) {
+    const rect = stageEl.getBoundingClientRect();
+    laserDot.style.left = clientX - rect.left + "px";
+    laserDot.style.top = clientY - rect.top + "px";
+  }
+  function toggleLaser(forceOn) {
+    laserActive = typeof forceOn === "boolean" ? forceOn : !laserActive;
+    laserDot.classList.toggle("show", laserActive);
+  }
+  stageEl.addEventListener("mousemove", (e) => {
+    if (laserActive) setLaserDotAt(e.clientX, e.clientY);
+  });
+  window.addEventListener("message", (e) => {
+    const data = e.data || {};
+    if (data.type !== "cursor-editor:mouse-move" || !laserActive) return;
+    const rect = stageFrame.getBoundingClientRect();
+    if (!data.w || !data.h) return;
+    setLaserDotAt(rect.left + (data.x / data.w) * rect.width, rect.top + (data.y / data.h) * rect.height);
+  });
+
+  /* ------------------------------------------------------------------ */
+  /* 암전/백지 화면 — PPT의 B(블랙아웃)/W(화이트아웃)와 같은 동작. Q&A나      */
+  /* 이야기에 집중시키고 싶을 때 슬라이드를 잠깐 가린다.                     */
+  /* ------------------------------------------------------------------ */
+
+  const blackoutScreen = document.getElementById("blackoutScreen");
+  function setBlackout(mode) {
+    blackoutScreen.classList.remove("show", "white");
+    if (mode === "black") blackoutScreen.classList.add("show");
+    else if (mode === "white") blackoutScreen.classList.add("show", "white");
+  }
+  function toggleBlackout(mode) {
+    const isWhite = blackoutScreen.classList.contains("white");
+    const showingThisMode = blackoutScreen.classList.contains("show") && (mode === "white" ? isWhite : !isWhite);
+    setBlackout(showingThisMode ? null : mode);
+  }
   presentExit.addEventListener("click", exitPresent);
 
   document.addEventListener("fullscreenchange", () => {
@@ -947,6 +1111,7 @@
     const notes = (FLAT[current] && FLAT[current].notes) || "";
     if (document.activeElement !== notesInput) notesInput.value = notes;
     pnText.textContent = notes || "(이 슬라이드에는 노트가 없습니다)";
+    broadcastPresenterState();
   }
 
   let presentTimerId = null;
@@ -962,12 +1127,70 @@
     updatePresentTimer();
     clearInterval(presentTimerId);
     presentTimerId = setInterval(updatePresentTimer, 1000);
+    broadcastPresenterState();
   }
   function stopPresentTimer() {
     clearInterval(presentTimerId);
     presentTimerId = null;
     presentNotes.classList.remove("is-open");
+    broadcastPresenterState();
   }
+
+  /* ------------------------------------------------------------------ */
+  /* 발표자 보기(듀얼 모니터) — 별도 창을 열어 발표자만 노트·타이머·다음      */
+  /* 슬라이드를 보게 한다. 같은 브라우저 안의 두 창을 BroadcastChannel로     */
+  /* 실시간 동기화하므로 서버가 필요 없다(단, 두 창이 같은 브라우저에서      */
+  /* 열려 있어야 한다 — 노트북 화면엔 이 창을, 프로젝터엔 index.html을).    */
+  /* ------------------------------------------------------------------ */
+
+  const presenterChannel = ("BroadcastChannel" in window) ? new BroadcastChannel("cursor-editor-presenter") : null;
+  let presenterWin = null;
+
+  function currentPresenterState() {
+    const item = FLAT[current] || {};
+    const nextItem = FLAT[current + 1] || null;
+    return {
+      type: "state",
+      deckTitle: (activeDeck() && activeDeck().title) || "",
+      idx: current,
+      total: FLAT.length,
+      title: item.title || "",
+      act: item.act || "",
+      notes: item.notes || "",
+      file: item.file || "",
+      virtual: !!item.virtual,
+      nextTitle: nextItem ? nextItem.title : "",
+      nextFile: nextItem ? nextItem.file : "",
+      nextVirtual: nextItem ? !!nextItem.virtual : false,
+      presentStartedAt: presentTimerId ? presentStartedAt : null,
+    };
+  }
+  function broadcastPresenterState() {
+    if (presenterChannel) presenterChannel.postMessage(currentPresenterState());
+  }
+  if (presenterChannel) {
+    presenterChannel.onmessage = (e) => {
+      const data = e.data || {};
+      if (data.type === "requestState") broadcastPresenterState();
+      else if (data.type === "nav") {
+        if (data.action === "next") go(current + 1);
+        else if (data.action === "prev") go(current - 1);
+        else if (data.action === "goto" && typeof data.idx === "number") go(data.idx);
+      } else if (data.type === "timer-reset") {
+        if (presentTimerId) startPresentTimer();
+      }
+    };
+  }
+  function openPresenterView() {
+    broadcastPresenterState();
+    if (!presenterWin || presenterWin.closed) {
+      presenterWin = window.open("presenter.html", "cursorEditorPresenter", "width=1080,height=720");
+    } else {
+      presenterWin.focus();
+    }
+    if (presenterViewBtn) presenterViewBtn.classList.add("linked");
+  }
+  if (presenterViewBtn) presenterViewBtn.addEventListener("click", openPresenterView);
 
   function render() {
     thumbList.innerHTML = "";
@@ -1276,20 +1499,15 @@
       orderStatus.textContent = "마지막 슬라이드는 삭제할 수 없습니다";
       return;
     }
-    if (!window.confirm(`"${item.title}" 슬라이드를 삭제할까요?\n이 작업은 되돌릴 수 없습니다.`)) return;
+    if (!window.confirm(`"${item.title}" 슬라이드를 삭제할까요?`)) return;
 
+    const actName = DECK[groupIdx].act;
     const activeFile = FLAT[current] ? FLAT[current].file : null;
     const wasActive = activeFile === item.file;
     const deletedFlatIdx = FLAT.findIndex((it) => it.file === item.file);
 
     DECK[groupIdx].items.splice(itemIdx, 1);
     rebuildFlat();
-
-    fetch("/api/delete-slide", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ file: item.file }),
-    }).catch(() => {});
 
     if (wasActive) {
       current = Math.max(0, Math.min(FLAT.length - 1, deletedFlatIdx));
@@ -1300,7 +1518,77 @@
     render();
     persistOrder();
     go(current);
+
+    scheduleSlideDeletion(item, actName);
   }
+
+  /* ------------------------------------------------------------------ */
+  /* 삭제 실행취소 — 지우기 버튼을 눌러도 몇 초간은 되돌릴 수 있게 하고,      */
+  /* 서버 쪽도 즉시 지우지 않고 .trash/로 옮겨서 이중으로 안전망을 둔다.     */
+  /* (긴장한 발표 준비 중 실수로 지웠을 때 되살릴 방법이 있어야 한다.)      */
+  /* ------------------------------------------------------------------ */
+
+  const UNDO_DELETE_MS = 8000;
+  let pendingDelete = null; // { item, actName, timer, toastEl }
+
+  function finalizePendingDelete() {
+    if (!pendingDelete) return;
+    const { item, timer, toastEl } = pendingDelete;
+    clearTimeout(timer);
+    if (toastEl) toastEl.classList.remove("show");
+    setTimeout(() => toastEl && toastEl.remove(), 250);
+    pendingDelete = null;
+    fetch("/api/delete-slide", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file: item.file }),
+    }).catch(() => {});
+  }
+
+  function restoreDeletedSlide(item, actName) {
+    let groupIdx = DECK.findIndex((g) => g.act === actName);
+    if (groupIdx === -1) {
+      DECK.push({ act: actName || "복원됨", items: [] });
+      groupIdx = DECK.length - 1;
+    }
+    DECK[groupIdx].items.push(item);
+    rebuildFlat();
+    render();
+    persistOrder();
+    const idx = FLAT.findIndex((it) => it.file === item.file);
+    go(idx >= 0 ? idx : current);
+    orderStatus.textContent = `"${item.title}" 슬라이드를 복원했습니다`;
+  }
+
+  function showUndoToast(item, actName) {
+    const toast = document.createElement("div");
+    toast.className = "undo-toast";
+    toast.innerHTML =
+      `<span>"${escapeHtml(item.title)}" 슬라이드를 삭제했습니다</span>` +
+      `<button type="button" class="undo-btn">↺ 실행취소</button>`;
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add("show"));
+    toast.querySelector(".undo-btn").addEventListener("click", () => {
+      if (!pendingDelete || pendingDelete.item !== item) return;
+      clearTimeout(pendingDelete.timer);
+      toast.classList.remove("show");
+      setTimeout(() => toast.remove(), 250);
+      pendingDelete = null;
+      restoreDeletedSlide(item, actName);
+    });
+    return toast;
+  }
+
+  function scheduleSlideDeletion(item, actName) {
+    finalizePendingDelete(); // 대기 중이던 삭제가 있으면 먼저 확정하고 새로 시작
+    const toastEl = showUndoToast(item, actName);
+    const timer = setTimeout(finalizePendingDelete, UNDO_DELETE_MS);
+    pendingDelete = { item, actName, timer, toastEl };
+  }
+
+  window.addEventListener("beforeunload", () => {
+    if (pendingDelete) finalizePendingDelete();
+  });
 
   /* ------------------------------------------------------------------ */
   /* 드래그 & 드롭으로 슬라이드 순서 바꾸기                                     */
@@ -1670,6 +1958,9 @@
     else if (key === "F5") togglePresent();
     else if (key === "Escape" && presenting) exitPresent();
     else if ((key === "n" || key === "N") && presenting) presentNotes.classList.toggle("is-open");
+    else if ((key === "l" || key === "L") && presenting) toggleLaser();
+    else if ((key === "b" || key === "B") && presenting) toggleBlackout("black");
+    else if ((key === "w" || key === "W") && presenting) toggleBlackout("white");
   }
   window.addEventListener("keydown", (e) => {
     // 채팅창/검색창/이름변경 입력 중에는 화살표가 슬라이드 이동으로 새면 안 된다
@@ -2021,11 +2312,35 @@
     });
   }
 
-  // 에이전트 도구 호출 판단(한 턴)을 위한 비스트리밍 다이렉트 호출.
+  // 일시적 오류(429 rate limit, 500/502/503/529 서버 과부하)는 에이전트가
+  // 긴 멀티스텝 작업 중간에 한 번 삐끗했다고 사용자가 매번 "다시 시도"를
+  // 누르게 하지 않도록, 여기서 짧게 자동으로 몇 번 재시도한다.
+  const RETRYABLE_HTTP_STATUSES = [429, 500, 502, 503, 529];
+  const RETRY_BACKOFF_MS = [1200, 3500];
+  function retryableFetchJson(url, options, attempt) {
+    attempt = attempt || 0;
+    return fetch(url, options).then((res) =>
+      res.json().catch(() => null).then((data) => {
+        if (!res.ok) {
+          if (RETRYABLE_HTTP_STATUSES.indexOf(res.status) !== -1 && attempt < RETRY_BACKOFF_MS.length) {
+            return new Promise((resolve) => setTimeout(resolve, RETRY_BACKOFF_MS[attempt])).then(() =>
+              retryableFetchJson(url, options, attempt + 1)
+            );
+          }
+          throw new Error((data && data.error && data.error.message) || ("Anthropic API 오류 " + res.status));
+        }
+        return data;
+      })
+    );
+  }
+
+  // 에이전트 도구 호출 판단(한 턴)을 위한 비스트리밍 다이렉트 호출. max_tokens는
+  // 도구 입력(예: write_slide의 전체 슬라이드 html)이 중간에 잘리면 잘린
+  // JSON을 그대로 파일에 써버릴 위험이 있어, 여유 있게 잡아둔다.
   function callAnthropicOnceClient(messages, systemPrompt, tools, maxTokens) {
     const apiKey = getClientApiKeys().claude;
     if (!apiKey) return Promise.reject(new Error("Claude API 키가 설정되지 않았습니다"));
-    return fetch("https://api.anthropic.com/v1/messages", {
+    return retryableFetchJson("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -2033,11 +2348,8 @@
         "anthropic-version": "2023-06-01",
         "anthropic-dangerous-direct-browser-access": "true",
       },
-      body: JSON.stringify({ model: CLAUDE_MODEL_CLIENT, max_tokens: maxTokens || 2048, system: systemPrompt, thinking: { type: "disabled" }, tools, messages }),
-    }).then((res) => res.json().then((data) => {
-      if (!res.ok) throw new Error((data.error && data.error.message) || ("Anthropic API 오류 " + res.status));
-      return data;
-    }));
+      body: JSON.stringify({ model: CLAUDE_MODEL_CLIENT, max_tokens: maxTokens || 8192, system: systemPrompt, thinking: { type: "disabled" }, tools, messages }),
+    });
   }
 
   // OpenAI 이미지 스트리밍(브라우저 다이렉트). server.js의 callOpenAiImageStream과
@@ -2188,7 +2500,7 @@
   }
   function agentTurnRequest(messages) {
     if (hasClientClaudeKey()) {
-      return callAnthropicOnceClient(messages, AI_AGENT_SYSTEM_PROMPT_CLIENT, AGENT_TOOLS_CLIENT, 2048)
+      return callAnthropicOnceClient(messages, AI_AGENT_SYSTEM_PROMPT_CLIENT, AGENT_TOOLS_CLIENT, 8192)
         .then((data) => ({ ok: true, content: data.content || [], stopReason: data.stop_reason || null }))
         .catch((e) => ({ ok: false, error: (e && e.message) || String(e) }));
     }
@@ -3035,12 +3347,23 @@
 
   async function runAgentRounds(roundIdx) {
     if (roundIdx >= AGENT_MAX_ROUNDS) {
-      appendAgentAssistantBubble("작업이 길어져서 일단 멈췄어요. 이어서 진행하려면 다시 요청해주세요.");
+      // 한 번의 사용자 요청 안에서 이만큼 도구를 불렀다는 뜻이지, 작업이 잘못됐다는
+      // 뜻은 아니다(전체 슬라이드 검토처럼 원래 단계가 많은 요청도 있다) — 대화를
+      // 그대로 두고 라운드 수만 리셋해서 이어갈 수 있는 버튼을 준다.
+      appendAgentAssistantBubble("작업이 길어서 일단 멈췄어요. 지금까지 진행한 내용은 그대로 남아있으니 이어서 진행할 수 있어요.");
+      appendAgentRetryBubble("▶ 이어서 진행");
       return;
     }
     const res = await agentTurnRequest(compactConversationForRequest(agentConversation));
     if (!res || !res.ok) throw new Error((res && res.error) || "에이전트 응답 실패");
     const content = res.content || [];
+    // max_tokens에 걸려 응답이 중간에 끊기면, tool_use 안의 JSON(예: write_slide의
+    // html)도 잘려서 들어올 수 있다 — 그걸 그대로 파일에 써버리면 슬라이드가
+    // 깨진 내용으로 저장되는 사고가 나므로, 잘린 도구 호출은 절대 실행하지 않고
+    // 여기서 바로 에러로 취급해 재시도 버튼으로 넘긴다.
+    if (res.stopReason === "max_tokens" && content.some((b) => b.type === "tool_use")) {
+      throw new Error("응답이 길어서 중간에 잘렸습니다(도구 호출이 불완전할 수 있어 실행하지 않았습니다). 다시 시도해주세요.");
+    }
     agentConversation.push({ role: "assistant", content });
     const toolUseBlocks = content.filter((b) => b.type === "tool_use");
     const textBlocks = content.filter((b) => b.type === "text" && b.text && b.text.trim());
@@ -3088,10 +3411,10 @@
   // 오류 말풍선 옆에 "다시 시도" 버튼을 붙여 마지막 요청만 다시 보낸다.
   // (도구 실행 오류는 executeAgentTool이 안에서 흡수하므로, 여기 오는 실패는
   // 항상 마지막 메시지가 user인 상태 — 그대로 다음 턴을 재요청하면 된다.)
-  function appendAgentRetryBubble() {
+  function appendAgentRetryBubble(label) {
     const el = document.createElement("div");
     el.className = "agent-msg agent-retry";
-    el.innerHTML = '<button type="button" class="agent-retry-btn">↻ 다시 시도</button>';
+    el.innerHTML = '<button type="button" class="agent-retry-btn">' + (label || "↻ 다시 시도") + "</button>";
     el.querySelector("button").addEventListener("click", () => {
       el.remove();
       resumeAgentAfterError();
@@ -3274,7 +3597,39 @@
   window.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
     if (apikeyPanel.style.display === "flex") closeApikeyPanel();
+    else if (shortcutsPanel.style.display === "flex") closeShortcutsPanel();
     else if (agentPanel.classList.contains("is-open")) closeAgentPanel();
+  });
+
+  /* ------------------------------------------------------------------ */
+  /* 키보드 단축키 도움말 — 편집기 곳곳(iframe 안 editor.js 포함)에 흩어져   */
+  /* 있는 단축키를 한 곳에 모아 보여준다. 순수 안내용이라 실제 동작을       */
+  /* 재정의하지는 않는다.                                                   */
+  /* ------------------------------------------------------------------ */
+
+  const shortcutsBackdrop = document.getElementById("shortcutsBackdrop");
+  const shortcutsPanel = document.getElementById("shortcutsPanel");
+  function openShortcutsPanel() {
+    shortcutsPanel.style.display = "flex";
+    shortcutsBackdrop.style.display = "block";
+  }
+  function closeShortcutsPanel() {
+    shortcutsPanel.style.display = "none";
+    shortcutsBackdrop.style.display = "none";
+  }
+  function toggleShortcutsPanel() {
+    shortcutsPanel.style.display === "flex" ? closeShortcutsPanel() : openShortcutsPanel();
+  }
+  document.getElementById("shortcutsBtn").addEventListener("click", toggleShortcutsPanel);
+  document.getElementById("shortcutsCloseBtn").addEventListener("click", closeShortcutsPanel);
+  shortcutsBackdrop.addEventListener("click", closeShortcutsPanel);
+  window.addEventListener("keydown", (e) => {
+    if (e.key !== "?") return;
+    const t = e.target;
+    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+    if (presenting) return;
+    e.preventDefault();
+    toggleShortcutsPanel();
   });
 
   // 부팅: 발표 목록(decks.json) → 마지막에 보던 발표의 매니페스트 순으로 불러온다.

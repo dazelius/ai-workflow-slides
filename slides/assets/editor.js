@@ -2096,6 +2096,24 @@
     if (el) selectFreeEl(el);
   });
 
+  // 발표 중 레이저 포인터(L 키)는 부모 창의 스포트라이트 점이 실제 슬라이드
+  // 내용(iframe 안) 위에서도 마우스를 따라오게 해야 의미가 있으므로, 편집
+  // 중이 아닐 때만 좌표를 부모로 전달한다(과도한 postMessage를 막으려고
+  // 대략 60fps로만 보냄).
+  var lastMouseSent = 0;
+  document.addEventListener("mousemove", function (e) {
+    if (isEditing()) return;
+    var now = Date.now();
+    if (now - lastMouseSent < 16) return;
+    lastMouseSent = now;
+    try {
+      window.parent.postMessage(
+        { type: "cursor-editor:mouse-move", x: e.clientX, y: e.clientY, w: window.innerWidth, h: window.innerHeight },
+        "*"
+      );
+    } catch (err) {}
+  });
+
   document.addEventListener("keydown", function (e) {
     if (!isEditing()) {
       // 슬라이드(iframe)를 클릭하면 포커스가 이 문서로 넘어와서, 부모 창의
@@ -2103,7 +2121,7 @@
       // 편집 중이 아닐 때는 네비게이션 키를 부모(index.html)로 전달한다.
       var t = e.target;
       var typing = t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
-      var navKeys = ["ArrowRight", "ArrowLeft", "PageDown", "PageUp", "F5", "Escape", " ", "Enter", "n", "N"];
+      var navKeys = ["ArrowRight", "ArrowLeft", "PageDown", "PageUp", "F5", "Escape", " ", "Enter", "n", "N", "l", "L", "b", "B", "w", "W"];
       if (!typing && navKeys.indexOf(e.key) !== -1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
         if (e.key === "F5" || e.key === " ") e.preventDefault(); // 새로고침/스크롤 방지
         try {
